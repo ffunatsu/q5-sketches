@@ -1,5 +1,5 @@
 // mystral-shim.js
-var isMystral2 = typeof global === "undefined";
+var isMystral2 = typeof window !== "undefined" && typeof global === "undefined" && (typeof document === "undefined" || typeof document.getElementsByTagName !== "function");
 globalThis.isMystral = isMystral2;
 if (isMystral2) {
   globalThis.global = globalThis;

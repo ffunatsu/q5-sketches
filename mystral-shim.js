@@ -1,4 +1,7 @@
-const isMystral = typeof global === "undefined";
+const isMystral =
+  typeof window !== "undefined" &&
+  typeof global === "undefined" &&
+  (typeof document === "undefined" || typeof document.getElementsByTagName !== "function");
 globalThis.isMystral = isMystral;
 
 if (isMystral) {
