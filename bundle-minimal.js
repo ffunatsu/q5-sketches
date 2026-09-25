@@ -8327,7 +8327,8 @@ async function initCanvas2(w, h) {
 globalThis.initCanvas = initCanvas2;
 
 // minimal.js
-await initCanvas(1280, 720);
+var Canvas3 = initCanvas;
+await Canvas3(1280, 720);
 background("#101820");
 noStroke();
 fill("#ff6b6b");
