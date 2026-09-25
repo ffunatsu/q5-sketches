@@ -27,3 +27,53 @@ q5.draw = function() {
   fill('blue');
   text("fps: " + round(frameRate(), 2), 50, 50);
 };
+
+// ==================
+//   p5.js
+// ==================
+
+// function setup() {
+//   createCanvas(1280, 720);
+// }
+//
+// function draw() {
+//   background(0);
+//   fill(255);
+//   noStroke();
+//
+//   for (var i = 0; i < 5000; i++) {
+//     rect(random(width), random(height), 10, 10);  
+//   }
+//
+//   fill(0, 255, 255);
+//   text("fps: " + round(frameRate(), 2), 10, 10);
+// }
+//
+// function mousePressed() {
+//   if (mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
+//     let fs = fullscreen();
+//     fullscreen(!fs);
+//   }
+// }
+
+// ==================
+//   openFrameworks
+// ==================
+
+// void ofApp::draw(){
+//     ofBackground(0);
+//     ofSetColor(255);
+//     ofFill();
+//
+//     for (int i = 0; i < 20000; i++) {
+//       ofDrawRectangle(ofRandom(ofGetWidth()), ofRandom(ofGetHeight()), 10, 10);
+//     }
+//
+//     ofSetColor(0, 255, 255);
+//     ofDrawBitmapStringHighlight("fps: " + ofToString(ofGetFrameRate(), 2), 10, 10);
+//
+// }
+//
+// void ofApp::mousePressed(int x, int y, int button){
+//     ofToggleFullscreen();
+// }
