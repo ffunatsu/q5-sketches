@@ -6,7 +6,8 @@ let Canvas = initCanvas;
 
 // ------
 
-await Canvas(1280, 720);
+// await Canvas(1280, 720);
+await Canvas();
 
 background("#101820");
 noStroke();

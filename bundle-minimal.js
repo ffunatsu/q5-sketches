@@ -8316,11 +8316,15 @@ if (typeof document == "object") {
 
 // utils.js
 async function initCanvas2(w, h) {
-  await Canvas(w, h);
-  if (isMystral) {
-    if (window.innerWidth !== w || window.innerHeight !== h) {
-      console.error(`Canvas/window size mismatch: window is ${window.innerWidth}x${window.innerHeight}, expected ${w}x${h}. Run with --width ${w} --height ${h}.`);
-      process.exit(1);
+  if (w == null && h == null || typeof w === "undefined" && typeof h === "undefined") {
+    await Canvas();
+  } else {
+    await Canvas(w, h);
+    if (isMystral) {
+      if (window.innerWidth !== w || window.innerHeight !== h) {
+        console.error(`Canvas/window size mismatch: window is ${window.innerWidth}x${window.innerHeight}, expected ${w}x${h}. Run with --width ${w} --height ${h}.`);
+        process.exit(1);
+      }
     }
   }
 }
@@ -8328,7 +8332,7 @@ globalThis.initCanvas = initCanvas2;
 
 // minimal.js
 var Canvas3 = initCanvas;
-await Canvas3(1280, 720);
+await Canvas3();
 background("#101820");
 noStroke();
 fill("#ff6b6b");
