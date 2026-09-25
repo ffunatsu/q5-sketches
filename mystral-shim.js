@@ -1,4 +1,5 @@
 const isMystral = typeof global === "undefined";
+globalThis.isMystral = isMystral;
 
 if (isMystral) {
   globalThis.global = globalThis;

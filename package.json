@@ -1,0 +1,9 @@
+{
+  "name": "q5-sketches",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "esbuild": "0.25.0"
+  }
+}
