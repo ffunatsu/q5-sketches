@@ -1,3 +1,5 @@
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+
 system-info:
   @echo "This is an {{os_family()}} ({{arch()}}) machine."
 
