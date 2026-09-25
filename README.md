@@ -5,7 +5,8 @@ using [mystral_q5js](https://github.com/ffunatsu/mystral_q5js).
 For task runner, using [just](https://just.systems/man/en/) ([#install](https://github.com/casey/just/tree/master#installation))
 
 ```bash
-just run minimal
+$ npm install
+$ just run minimal
 ```
 
 ## Sketches
