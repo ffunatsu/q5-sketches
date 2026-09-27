@@ -9,6 +9,11 @@ $ npm install
 $ just run minimal
 ```
 
+> [!Note]
+> Some specific sketches were written with AI assisted coding, such as GitHub Copilot.
+>
+> Please pay much attention when using AI generated code bases.
+
 ## Sketches
 
 - minimal
