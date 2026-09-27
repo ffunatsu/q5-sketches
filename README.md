@@ -9,7 +9,7 @@ $ npm install
 $ just run minimal
 ```
 
-**NOTE** Please install `mystral` from [mystral_q5js Releases](https://github.com/ffunatsu/mystral_q5js/releases) first.
+Please install `mystral` from [mystral_q5js Releases](https://github.com/ffunatsu/mystral_q5js/releases) first.
 
 > [!Note]
 > Some specific sketches were written with AI assisted coding, such as GitHub Copilot.
