@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 name="${1:-main}"
-names=(minimal)
+names=(minimal 3d-basic 3d-direct 3d-camera 3d-lights)
 
 bundle() {
   local entry="$1.js"

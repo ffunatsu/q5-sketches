@@ -1927,17 +1927,17 @@ Q5.renderers.c2d.text = ($, q) => {
     else lines = str.split("\n");
     if (str.length > w) {
       let wrapped = [];
-      for (let line of lines) {
+      for (let line2 of lines) {
         let i = 0;
-        while (i < line.length) {
+        while (i < line2.length) {
           let max = i + w;
-          if (max >= line.length) {
-            wrapped.push(line.slice(i));
+          if (max >= line2.length) {
+            wrapped.push(line2.slice(i));
             break;
           }
-          let end = line.lastIndexOf(" ", max);
+          let end = line2.lastIndexOf(" ", max);
           if (end === -1 || end < i) end = max;
-          wrapped.push(line.slice(i, end));
+          wrapped.push(line2.slice(i, end));
           i = end + 1;
         }
       }
@@ -1959,8 +1959,8 @@ Q5.renderers.c2d.text = ($, q) => {
         let descent = measure.fontBoundingBoxDescent;
         $.ctx.textBaseline = ogBaseline;
         let maxWidth = 0;
-        for (let line of lines) {
-          let lineWidth = ctx.measureText(line).width;
+        for (let line2 of lines) {
+          let lineWidth = ctx.measureText(line2).width;
           if (lineWidth > maxWidth) maxWidth = lineWidth;
         }
         let imgW = Math.max(1, Math.ceil(maxWidth)), imgH = Math.max(1, Math.ceil(leading * lines.length + descent));
@@ -1995,9 +1995,9 @@ Q5.renderers.c2d.text = ($, q) => {
       ctx.fillStyle = "black";
     }
     let lineAmount = 0;
-    for (let line of lines) {
-      if ($.__doStroke && $._strokeSet) ctx.strokeText(line, tX, tY);
-      if ($.__doFill) ctx.fillText(line, tX, tY);
+    for (let line2 of lines) {
+      if ($.__doStroke && $._strokeSet) ctx.strokeText(line2, tX, tY);
+      if ($.__doFill) ctx.fillText(line2, tX, tY);
       tY += leading;
       lineAmount++;
       if (lineAmount >= h) break;
@@ -3026,8 +3026,8 @@ Q5.modules.fes = ($) => {
   };
   if (typeof window !== "undefined" && window.addEventListener) {
     let err = new Error(), lines = err.stack?.split("\n") || "";
-    for (let line of lines) {
-      let match = line.match(/(https?:\/\/[^\s)]+\.js|\b\/[^\s)]+\.js)/);
+    for (let line2 of lines) {
+      let match = line2.match(/(https?:\/\/[^\s)]+\.js|\b\/[^\s)]+\.js)/);
       if (match) {
         let file = match[1];
         if (!/q5|p5play|q5play|brython/i.test(file)) {
@@ -7233,14 +7233,14 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
   let charDataBuffer = new Float32Array(Q5.MAX_CHARS * 4);
   let textDataBuffer = new Float32Array(Q5.MAX_TEXTS * 8);
   let measureText = (font, text, charCallback) => {
-    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text.charCodeAt(0);
+    let maxWidth = 0, offsetX = 0, offsetY = 0, line2 = 0, printedCharCount = 0, nextCharCode = text.charCodeAt(0);
     for (let i = 0; i < text.length; ++i) {
       let charCode = nextCharCode;
       nextCharCode = i < text.length - 1 ? text.charCodeAt(i + 1) : -1;
       switch (charCode) {
         case 10:
-          lineWidths[line] = offsetX;
-          line++;
+          lineWidths[line2] = offsetX;
+          line2++;
           maxWidth = Math.max(maxWidth, offsetX);
           offsetX = 0;
           offsetY -= font.lineHeight * leadPercent;
@@ -7255,15 +7255,15 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
           break;
         default:
           if (charCallback) {
-            charCallback(offsetX, offsetY, line, font.getChar(charCode));
+            charCallback(offsetX, offsetY, line2, font.getChar(charCode));
           }
           offsetX += font.getXAdvance(charCode, nextCharCode);
           printedCharCount++;
       }
     }
-    lineWidths[line] = offsetX;
+    lineWidths[line2] = offsetX;
     maxWidth = Math.max(maxWidth, offsetX);
-    let lineCount = line + 1;
+    let lineCount = line2 + 1;
     return {
       width: maxWidth,
       height: lineCount * font.lineHeight * leadPercent,
@@ -7306,7 +7306,7 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
     let charsData = [];
     let ta = _textAlign, tb = _textBaseline, textIndex = textStack.length, o = 0, measurements;
     if (ta == "left" && !hasNewline) {
-      measurements = measureText($._font, str, (textX, textY, line, char) => {
+      measurements = measureText($._font, str, (textX, textY, line2, char) => {
         charsData[o] = textX;
         charsData[o + 1] = -textY;
         charsData[o + 2] = char.charIndex;
@@ -7322,12 +7322,12 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
       if (tb == "alphabetic") y += _textSize * yDir;
       else if (tb == "middle") offsetY = measurements.height * 0.5;
       else if (tb == "bottom") offsetY = measurements.height;
-      measureText($._font, str, (textX, textY, line, char) => {
+      measureText($._font, str, (textX, textY, line2, char) => {
         let offsetX = 0;
         if (ta == "center") {
-          offsetX = measurements.width * -0.5 - (measurements.width - measurements.lineWidths[line]) * -0.5;
+          offsetX = measurements.width * -0.5 - (measurements.width - measurements.lineWidths[line2]) * -0.5;
         } else if (ta == "right") {
-          offsetX = -measurements.lineWidths[line];
+          offsetX = -measurements.lineWidths[line2];
         }
         charsData[o] = textX + offsetX;
         charsData[o + 1] = (textY + offsetY) * yDir;
@@ -9019,8 +9019,8 @@ async def __run(q):
               lines[j] = lines[j].slice(indent.length);
             }
           } else {
-            let line = code.split("\n")[lineNum - 1].trim();
-            lines.unshift(line, "");
+            let line2 = code.split("\n")[lineNum - 1].trim();
+            lines.unshift(line2, "");
           }
           err = lines.join("\n");
           break;
@@ -9132,13 +9132,31 @@ async function initCanvas2(w, h) {
 }
 globalThis.initCanvas = initCanvas2;
 
-// minimal.js
+// 3d-direct.js
 var Canvas3 = initCanvas;
-await Canvas3();
-background("#101820");
-noStroke();
-fill("#ff6b6b");
-circle(0, 0, 80);
+await Canvas3(void 0, void 0, "3d");
+var width = window.innerWidth;
+var height = window.innerHeight;
+camera(0, 0, 500, 0, 0, 0, 0, 1, 0);
+q5.draw = function() {
+  background("#121620");
+  orbitControl(true);
+  directionalLight(255, 240, 220, 0.5, 0.8, 1);
+  ambientLight(120, 120, 140);
+  push();
+  rotateX(frameCount * 0.01);
+  rotateY(frameCount * 0.015);
+  fill(60, 150, 240);
+  stroke(255, 255, 255);
+  box(160);
+  stroke(255, 80, 80);
+  line(-200, 0, 0, 200, 0, 0);
+  stroke(80, 255, 80);
+  line(0, -200, 0, 0, 200, 0);
+  stroke(80, 120, 255);
+  line(0, 0, -200, 0, 0, 200);
+  pop();
+};
 /**
  * q5.js
  * @version 4.8

@@ -4265,8 +4265,8 @@ Q5.modules.util = ($, q) => {
   $.loadCSV = (url, cb) => $._loadFile(url, cb, "csv");
   $.loadXML = (url, cb) => {
     let ret = {};
-    ret.promise = fetch(url).then((res) => res.text()).then((text) => {
-      let xml = new DOMParser().parseFromString(text, "application/xml");
+    ret.promise = fetch(url).then((res) => res.text()).then((text2) => {
+      let xml = new DOMParser().parseFromString(text2, "application/xml");
       ret.DOM = xml;
       delete ret.then;
       if (cb) cb(xml);
@@ -7232,11 +7232,11 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
   let lineWidths = new Array(100);
   let charDataBuffer = new Float32Array(Q5.MAX_CHARS * 4);
   let textDataBuffer = new Float32Array(Q5.MAX_TEXTS * 8);
-  let measureText = (font, text, charCallback) => {
-    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text.charCodeAt(0);
-    for (let i = 0; i < text.length; ++i) {
+  let measureText = (font, text2, charCallback) => {
+    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text2.charCodeAt(0);
+    for (let i = 0; i < text2.length; ++i) {
       let charCode = nextCharCode;
-      nextCharCode = i < text.length - 1 ? text.charCodeAt(i + 1) : -1;
+      nextCharCode = i < text2.length - 1 ? text2.charCodeAt(i + 1) : -1;
       switch (charCode) {
         case 10:
           lineWidths[line] = offsetX;
@@ -9132,13 +9132,49 @@ async function initCanvas2(w, h) {
 }
 globalThis.initCanvas = initCanvas2;
 
-// minimal.js
+// 3d-basic.js
 var Canvas3 = initCanvas;
 await Canvas3();
-background("#101820");
-noStroke();
-fill("#ff6b6b");
-circle(0, 0, 80);
+var width = window.innerWidth;
+var height = window.innerHeight;
+var pg3d;
+try {
+  pg3d = createGraphics(width, height, "3d");
+} catch (err) {
+  console.error("createGraphics error:", err);
+}
+q5.draw = function() {
+  if (!pg3d) {
+    console.log("error: pg3d undefined");
+    return;
+  }
+  background("#121620");
+  pg3d.clear();
+  pg3d.orbitControl(true);
+  pg3d.directionalLight(255, 240, 200, 0.5, 0.8, 1);
+  pg3d.ambientLight(100, 100, 120);
+  pg3d.push();
+  pg3d.rotateX(frameCount * 0.01);
+  pg3d.rotateY(frameCount * 0.015);
+  pg3d.fill(60, 150, 240);
+  pg3d.stroke(255, 255, 255);
+  pg3d.box(160);
+  pg3d.stroke(255, 80, 80);
+  pg3d.line(-200, 0, 0, 200, 0, 0);
+  pg3d.stroke(80, 255, 80);
+  pg3d.line(0, -200, 0, 0, 200, 0);
+  pg3d.stroke(80, 120, 255);
+  pg3d.line(0, 0, -200, 0, 0, 200);
+  pg3d.pop();
+  pg3d.flush();
+  image(pg3d, 0, 0);
+  fill(255);
+  noStroke();
+  textSize(16);
+  textAlign(LEFT, TOP);
+  text("q5.js 3D WebGPU - Basic Box & Layering", 20, 20);
+  text("FPS: " + Math.round(frameRate()), 20, 45);
+};
 /**
  * q5.js
  * @version 4.8
