@@ -4275,8 +4275,8 @@ Q5.modules.util = ($, q) => {
   $.loadCSV = (url, cb) => $._loadFile(url, cb, "csv");
   $.loadXML = (url, cb) => {
     let ret = {};
-    ret.promise = fetch(url).then((res) => res.text()).then((text) => {
-      let xml = new DOMParser().parseFromString(text, "application/xml");
+    ret.promise = fetch(url).then((res) => res.text()).then((text2) => {
+      let xml = new DOMParser().parseFromString(text2, "application/xml");
       ret.DOM = xml;
       delete ret.then;
       if (cb) cb(xml);
@@ -7255,11 +7255,11 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
   let lineWidths = new Array(100);
   let charDataBuffer = new Float32Array(Q5.MAX_CHARS * 4);
   let textDataBuffer = new Float32Array(Q5.MAX_TEXTS * 8);
-  let measureText = (font, text, charCallback) => {
-    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text.charCodeAt(0);
-    for (let i = 0; i < text.length; ++i) {
+  let measureText = (font, text2, charCallback) => {
+    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text2.charCodeAt(0);
+    for (let i = 0; i < text2.length; ++i) {
       let charCode = nextCharCode;
-      nextCharCode = i < text.length - 1 ? text.charCodeAt(i + 1) : -1;
+      nextCharCode = i < text2.length - 1 ? text2.charCodeAt(i + 1) : -1;
       switch (charCode) {
         case 10:
           lineWidths[line] = offsetX;
@@ -9890,13 +9890,88 @@ async function initCanvas2(w, h) {
 }
 globalThis.initCanvas = initCanvas2;
 
-// minimal.js
+// 3d-texture.js
 var Canvas3 = initCanvas;
-await Canvas3();
-background("#101820");
-noStroke();
-fill("#ff6b6b");
-circle(0, 0, 80);
+await Canvas3(void 0, void 0, "webgpu");
+var width = window.innerWidth;
+var height = window.innerHeight;
+var pg3d;
+var pgTex;
+try {
+  pg3d = createGraphics(width, height, "3d");
+  pgTex = createGraphics(256, 256, "c2d");
+} catch (err) {
+  console.error("createGraphics error:", err);
+}
+function updateTexture() {
+  pgTex.background(30, 40, 60);
+  const s = 32;
+  for (let x = 0; x < 256; x += s) {
+    for (let y = 0; y < 256; y += s) {
+      if ((x / s + y / s) % 2 === 0) {
+        pgTex.fill(220, 230, 255);
+        pgTex.noStroke();
+        pgTex.rect(x, y, s, s);
+      }
+    }
+  }
+  pgTex.fill(255, 80, 80);
+  pgTex.noStroke();
+  let cx = 128 + Math.cos(frameCount * 0.05) * 60;
+  let cy = 128 + Math.sin(frameCount * 0.05) * 60;
+  pgTex.circle(cx, cy, 50);
+  pgTex.fill(20);
+  pgTex.textSize(24);
+  pgTex.textAlign(CENTER, CENTER);
+  pgTex.text("WebGPU 3D", 128, 128);
+}
+q5.draw = function() {
+  if (!pg3d || !pgTex) return;
+  updateTexture();
+  pg3d.flush();
+  background("#101018");
+  pg3d.clear();
+  pg3d.camera(300, -250, 350, 0, 0, 0, 0, 1, 0);
+  pg3d.orbitControl(true);
+  pg3d.directionalLight(255, 255, 255, 0.5, 0.8, 0.6);
+  pg3d.ambientLight(100, 100, 120);
+  pg3d.texture(pgTex);
+  pg3d.push();
+  pg3d.translate(-90, 0, 0);
+  pg3d.rotateX(frameCount * 0.01);
+  pg3d.rotateY(frameCount * 0.015);
+  pg3d.fill(255, 255, 255);
+  pg3d.box(110);
+  pg3d.pop();
+  pg3d.push();
+  pg3d.translate(90, 0, 0);
+  pg3d.rotateY(frameCount * 0.02);
+  pg3d.fill(255, 255, 255);
+  pg3d.sphere(60, 24, 18);
+  pg3d.pop();
+  pg3d.noTexture();
+  pg3d.push();
+  pg3d.translate(0, 100, 0);
+  pg3d.rotateX(Math.PI / 2);
+  pg3d.fill(50, 60, 80);
+  pg3d.plane(320, 320);
+  pg3d.pop();
+  pg3d.flush();
+  pgTex.modified = true;
+  imageMode(CENTER);
+  image(pg3d, 0, 0, width, height);
+  fill(255);
+  noStroke();
+  textSize(16);
+  textAlign(LEFT, TOP);
+  text("q5.js 3D WebGPU - Texture Mapping (texture(img))", 20, 20);
+  imageMode(CORNER);
+  image(pgTex, -width / 2 + 20, height / 2 - 100, 80, 80);
+  fill(200);
+  textSize(12);
+  text("Dynamic Texture Preview (80x80)", 20, height - 15);
+  text("FPS: " + Math.round(frameRate()), 20, 45);
+};
 /**
  * q5.js
  * @version 4.8

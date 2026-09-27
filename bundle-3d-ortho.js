@@ -4275,8 +4275,8 @@ Q5.modules.util = ($, q) => {
   $.loadCSV = (url, cb) => $._loadFile(url, cb, "csv");
   $.loadXML = (url, cb) => {
     let ret = {};
-    ret.promise = fetch(url).then((res) => res.text()).then((text) => {
-      let xml = new DOMParser().parseFromString(text, "application/xml");
+    ret.promise = fetch(url).then((res) => res.text()).then((text2) => {
+      let xml = new DOMParser().parseFromString(text2, "application/xml");
       ret.DOM = xml;
       delete ret.then;
       if (cb) cb(xml);
@@ -7255,11 +7255,11 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
   let lineWidths = new Array(100);
   let charDataBuffer = new Float32Array(Q5.MAX_CHARS * 4);
   let textDataBuffer = new Float32Array(Q5.MAX_TEXTS * 8);
-  let measureText = (font, text, charCallback) => {
-    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text.charCodeAt(0);
-    for (let i = 0; i < text.length; ++i) {
+  let measureText = (font, text2, charCallback) => {
+    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text2.charCodeAt(0);
+    for (let i = 0; i < text2.length; ++i) {
       let charCode = nextCharCode;
-      nextCharCode = i < text.length - 1 ? text.charCodeAt(i + 1) : -1;
+      nextCharCode = i < text2.length - 1 ? text2.charCodeAt(i + 1) : -1;
       switch (charCode) {
         case 10:
           lineWidths[line] = offsetX;
@@ -9890,13 +9890,88 @@ async function initCanvas2(w, h) {
 }
 globalThis.initCanvas = initCanvas2;
 
-// minimal.js
+// 3d-ortho.js
 var Canvas3 = initCanvas;
-await Canvas3();
-background("#101820");
-noStroke();
-fill("#ff6b6b");
-circle(0, 0, 80);
+await Canvas3(void 0, void 0, "webgpu");
+var width = window.innerWidth;
+var height = window.innerHeight;
+var pg3d;
+try {
+  pg3d = createGraphics(width, height, "3d");
+} catch (err) {
+  console.error("createGraphics error:", err);
+}
+var camDistance = 500;
+q5.draw = function() {
+  if (!pg3d) return;
+  background("#1a1a24");
+  pg3d.clear();
+  let isOrtho = Math.floor(frameCount / 240) % 2 === 0;
+  if (isOrtho) {
+    pg3d.ortho(-width / 2, width / 2, -height / 2, height / 2, -2e3, 2e3);
+  } else {
+    pg3d.perspective(Math.PI / 3, width / height, 10, 5e3);
+  }
+  pg3d.camera(
+    camDistance,
+    -camDistance,
+    camDistance,
+    // eye
+    0,
+    0,
+    0,
+    // center
+    0,
+    1,
+    0
+    // up
+  );
+  pg3d.orbitControl(true);
+  pg3d.directionalLight(255, 255, 255, 0.6, 0.8, -0.5);
+  pg3d.ambientLight(80, 80, 100);
+  pg3d.push();
+  pg3d.rotateY(frameCount * 5e-3);
+  const gridSize = 3;
+  const spacing = 110;
+  const offset = (gridSize - 1) * spacing / 2;
+  for (let x = 0; x < gridSize; x++) {
+    for (let z = 0; z < gridSize; z++) {
+      pg3d.push();
+      let px = x * spacing - offset;
+      let pz = z * spacing - offset;
+      let h = 40 + 30 * Math.sin(frameCount * 0.05 + x + z);
+      pg3d.translate(px, -h / 2, pz);
+      let r = 80 + x * 70;
+      let g = 130 + z * 50;
+      let b = 220;
+      pg3d.fill(r, g, b);
+      pg3d.stroke(255, 255, 255);
+      pg3d.box(70, h, 70);
+      pg3d.pop();
+    }
+  }
+  pg3d.stroke(255, 60, 60);
+  pg3d.line(-200, 0, 0, 200, 0, 0);
+  pg3d.stroke(60, 255, 60);
+  pg3d.line(0, -200, 0, 0, 200, 0);
+  pg3d.stroke(60, 100, 255);
+  pg3d.line(0, 0, -200, 0, 0, 200);
+  pg3d.pop();
+  pg3d.flush();
+  imageMode(CENTER);
+  image(pg3d, 0, 0, width, height);
+  fill(255);
+  noStroke();
+  textSize(18);
+  textAlign(LEFT, TOP);
+  text("q5.js 3D WebGPU - Orthographic vs Perspective", 20, 20);
+  textSize(14);
+  fill(isOrtho ? "#55ff88" : "#88aaff");
+  text(`Projection Mode: ${isOrtho ? "ORTHOGRAPHIC (\u5E73\u884C\u6295\u5F71)" : "PERSPECTIVE (\u900F\u8996\u6295\u5F71)"}`, 20, 50);
+  fill(200);
+  text(`Switching in: ${4 - Math.floor(frameCount / 60) % 4}s`, 20, 72);
+  text(`FPS: ${Math.round(frameRate())}`, 20, 94);
+};
 /**
  * q5.js
  * @version 4.8

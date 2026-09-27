@@ -4275,8 +4275,8 @@ Q5.modules.util = ($, q) => {
   $.loadCSV = (url, cb) => $._loadFile(url, cb, "csv");
   $.loadXML = (url, cb) => {
     let ret = {};
-    ret.promise = fetch(url).then((res) => res.text()).then((text) => {
-      let xml = new DOMParser().parseFromString(text, "application/xml");
+    ret.promise = fetch(url).then((res) => res.text()).then((text2) => {
+      let xml = new DOMParser().parseFromString(text2, "application/xml");
       ret.DOM = xml;
       delete ret.then;
       if (cb) cb(xml);
@@ -7255,11 +7255,11 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
   let lineWidths = new Array(100);
   let charDataBuffer = new Float32Array(Q5.MAX_CHARS * 4);
   let textDataBuffer = new Float32Array(Q5.MAX_TEXTS * 8);
-  let measureText = (font, text, charCallback) => {
-    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text.charCodeAt(0);
-    for (let i = 0; i < text.length; ++i) {
+  let measureText = (font, text2, charCallback) => {
+    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text2.charCodeAt(0);
+    for (let i = 0; i < text2.length; ++i) {
       let charCode = nextCharCode;
-      nextCharCode = i < text.length - 1 ? text.charCodeAt(i + 1) : -1;
+      nextCharCode = i < text2.length - 1 ? text2.charCodeAt(i + 1) : -1;
       switch (charCode) {
         case 10:
           lineWidths[line] = offsetX;
@@ -9890,13 +9890,68 @@ async function initCanvas2(w, h) {
 }
 globalThis.initCanvas = initCanvas2;
 
-// minimal.js
+// 3d-lights.js
 var Canvas3 = initCanvas;
 await Canvas3();
-background("#101820");
-noStroke();
-fill("#ff6b6b");
-circle(0, 0, 80);
+var width = window.innerWidth;
+var height = window.innerHeight;
+var pg3d = createGraphics(width, height, "3d");
+var lightMode = "point";
+q5.keyPressed = function() {
+  if (key === "1") lightMode = "dir";
+  if (key === "2") lightMode = "point";
+  if (key === "3") lightMode = "spot";
+};
+q5.draw = function() {
+  if (!pg3d) return;
+  background("#12141c");
+  pg3d.clear();
+  pg3d.orbitControl(true);
+  pg3d.ambientLight(30, 30, 45);
+  let time = frameCount * 0.03;
+  let lightX = Math.cos(time) * 180;
+  let lightZ = Math.sin(time) * 180;
+  if (lightMode === "dir") {
+    pg3d.directionalLight(255, 230, 190, 1, 1.2, -1);
+  } else if (lightMode === "point") {
+    pg3d.pointLight(255, 140, 40, lightX, -90, lightZ);
+  } else if (lightMode === "spot") {
+    let spotX = Math.cos(time * 0.5) * 100;
+    pg3d.spotLight(80, 220, 255, spotX, -250, 0, 0, 1, 0, Math.PI / 7);
+  }
+  pg3d.push();
+  pg3d.push();
+  pg3d.fill(220, 220, 235);
+  pg3d.noStroke();
+  pg3d.sphere(65, 24, 18);
+  pg3d.pop();
+  for (let i = 0; i < 4; i++) {
+    let angle = i / 4 * Math.PI * 2;
+    pg3d.push();
+    pg3d.translate(Math.cos(angle) * 140, 20, Math.sin(angle) * 140);
+    pg3d.fill(130, 170, 230);
+    pg3d.stroke(255, 255, 255);
+    pg3d.box(45);
+    pg3d.pop();
+  }
+  if (lightMode === "point") {
+    pg3d.push();
+    pg3d.translate(lightX, -90, lightZ);
+    pg3d.fill(255, 200, 50);
+    pg3d.noStroke();
+    pg3d.sphere(8, 8, 8);
+    pg3d.pop();
+  }
+  pg3d.pop();
+  pg3d.flush();
+  imageMode(CENTER);
+  image(pg3d, 0, 0, width, height);
+  fill(255);
+  noStroke();
+  textSize(15);
+  text("Light Mode: " + lightMode.toUpperCase() + " (Press [1]: Dir, [2]: Point, [3]: Spot)", 20, 30);
+  text("FPS: " + Math.round(frameRate()), 20, 55);
+};
 /**
  * q5.js
  * @version 4.8

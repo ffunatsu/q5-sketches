@@ -9890,13 +9890,33 @@ async function initCanvas2(w, h) {
 }
 globalThis.initCanvas = initCanvas2;
 
-// minimal.js
+// test-graphics.js
 var Canvas3 = initCanvas;
-await Canvas3();
-background("#101820");
-noStroke();
-fill("#ff6b6b");
-circle(0, 0, 80);
+await Canvas3(void 0, void 0, "webgpu");
+var width = window.innerWidth;
+var height = window.innerHeight;
+var pg = createGraphics(256, 256);
+q5.draw = function() {
+  pg.background(0, 100, 200);
+  pg.fill(255, 200, 0);
+  pg.noStroke();
+  let x = 128 + Math.cos(frameCount * 0.05) * 60;
+  let y = 128 + Math.sin(frameCount * 0.05) * 60;
+  pg.circle(x, y, 60);
+  if (frameCount === 1) {
+    let ctx = pg.drawingContext || pg.ctx;
+    console.log("[test] ctx.fillStyle after background:", ctx.fillStyle);
+    console.log("[test] pg._fill:", pg._fill);
+    pg.fill(255, 0, 0);
+    console.log("[test] ctx.fillStyle after pg.fill(255, 0, 0):", ctx.fillStyle);
+    pg.rect(0, 0, 50, 50);
+    let imgData = ctx.getImageData(0, 0, 10, 10);
+    console.log("[test] pixel after pg.rect (should be red):", Array.from(imgData.data.slice(0, 4)));
+  }
+  background(30);
+  imageMode(CENTER);
+  image(pg, 0, 0, 256, 256);
+};
 /**
  * q5.js
  * @version 4.8

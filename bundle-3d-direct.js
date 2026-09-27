@@ -490,7 +490,7 @@ if (typeof document == "object") {
   else setTimeout(init, 0);
 }
 Q5.modules.canvas = ($, q) => {
-  $._Canvas = typeof window !== "undefined" && window.OffscreenCanvas || typeof globalThis !== "undefined" && globalThis.OffscreenCanvas || function() {
+  $._Canvas = window.OffscreenCanvas || function() {
     return document.createElement("canvas");
   };
   if (Q5._server) {
@@ -586,7 +586,6 @@ Q5.modules.canvas = ($, q) => {
   $.createCanvas = $.Canvas;
   $.createGraphics = function(w, h, opt = {}) {
     if (typeof opt == "string") opt = { renderer: opt };
-    if (opt.renderer == "2d") opt.renderer = "c2d";
     let g = new Q5("graphics", void 0, opt.renderer || ($._webgpuFallback ? "webgpu-fallback" : $._renderer));
     opt.alpha ??= true;
     opt.colorSpace ??= $.canvas.colorSpace;
@@ -766,8 +765,7 @@ if (!window.matchMedia || !matchMedia("(dynamic-range: high) and (color-gamut: p
 Q5.renderers.c2d = {};
 Q5.renderers.c2d.canvas = ($, q) => {
   let c = $.canvas;
-  if (c) c.colorSpace = "srgb";
-  if ($.colorMode) $.colorMode("rgb", 255, "srgb");
+  if ($.colorMode) $.colorMode("rgb", $._webgpu ? 1 : 255);
   $._createCanvas = function(w, h, options) {
     if (!c) {
       console.error("q5 canvas could not be created. skia-canvas and jsdom packages not found.");
@@ -1071,15 +1069,7 @@ Q5.renderers.c2d.shapes = ($) => {
   };
   function rect(x, y, w, h) {
     $.ctx.beginPath();
-    if (typeof $.ctx.rect === "function") {
-      $.ctx.rect(x, y, w, h);
-    } else {
-      $.ctx.moveTo(x, y);
-      $.ctx.lineTo(x + w, y);
-      $.ctx.lineTo(x + w, y + h);
-      $.ctx.lineTo(x, y + h);
-      $.ctx.closePath();
-    }
+    $.ctx.rect(x, y, w, h);
     ink();
   }
   function roundedRect(x, y, w, h, tl, tr, br, bl) {
@@ -1937,17 +1927,17 @@ Q5.renderers.c2d.text = ($, q) => {
     else lines = str.split("\n");
     if (str.length > w) {
       let wrapped = [];
-      for (let line of lines) {
+      for (let line2 of lines) {
         let i = 0;
-        while (i < line.length) {
+        while (i < line2.length) {
           let max = i + w;
-          if (max >= line.length) {
-            wrapped.push(line.slice(i));
+          if (max >= line2.length) {
+            wrapped.push(line2.slice(i));
             break;
           }
-          let end = line.lastIndexOf(" ", max);
+          let end = line2.lastIndexOf(" ", max);
           if (end === -1 || end < i) end = max;
-          wrapped.push(line.slice(i, end));
+          wrapped.push(line2.slice(i, end));
           i = end + 1;
         }
       }
@@ -1969,8 +1959,8 @@ Q5.renderers.c2d.text = ($, q) => {
         let descent = measure.fontBoundingBoxDescent;
         $.ctx.textBaseline = ogBaseline;
         let maxWidth = 0;
-        for (let line of lines) {
-          let lineWidth = ctx.measureText(line).width;
+        for (let line2 of lines) {
+          let lineWidth = ctx.measureText(line2).width;
           if (lineWidth > maxWidth) maxWidth = lineWidth;
         }
         let imgW = Math.max(1, Math.ceil(maxWidth)), imgH = Math.max(1, Math.ceil(leading * lines.length + descent));
@@ -2005,9 +1995,9 @@ Q5.renderers.c2d.text = ($, q) => {
       ctx.fillStyle = "black";
     }
     let lineAmount = 0;
-    for (let line of lines) {
-      if ($.__doStroke && $._strokeSet) ctx.strokeText(line, tX, tY);
-      if ($.__doFill) ctx.fillText(line, tX, tY);
+    for (let line2 of lines) {
+      if ($.__doStroke && $._strokeSet) ctx.strokeText(line2, tX, tY);
+      if ($.__doFill) ctx.fillText(line2, tX, tY);
       tY += leading;
       lineAmount++;
       if (lineAmount >= h) break;
@@ -2385,7 +2375,7 @@ Q5.ColorRGB_8 = class extends Q5.ColorRGB {
     this.a = v;
   }
   toString() {
-    return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a / 255})`;
+    return `rgb(${this.r} ${this.g} ${this.b} / ${this.a / 255})`;
   }
 };
 Q5.ColorRGB_P3_8 = class extends Q5.ColorRGB_8 {
@@ -3036,8 +3026,8 @@ Q5.modules.fes = ($) => {
   };
   if (typeof window !== "undefined" && window.addEventListener) {
     let err = new Error(), lines = err.stack?.split("\n") || "";
-    for (let line of lines) {
-      let match = line.match(/(https?:\/\/[^\s)]+\.js|\b\/[^\s)]+\.js)/);
+    for (let line2 of lines) {
+      let match = line2.match(/(https?:\/\/[^\s)]+\.js|\b\/[^\s)]+\.js)/);
       if (match) {
         let file = match[1];
         if (!/q5|p5play|q5play|brython/i.test(file)) {
@@ -6774,10 +6764,6 @@ fn fragMain(f: FragParams) -> @location(0) vec4f {
       $._addTexture(g, g._frameA);
       $._addTexture(g, g._frameB);
       g._beginRender();
-    } else if (g._renderer === "3d" || opt.renderer === "3d") {
-      g.modified = false;
-      if (g._texture) $._addTexture(g, g._texture);
-      g._owner = $;
     } else {
       $._makeDrawable(g);
       g.modified = true;
@@ -6811,17 +6797,8 @@ fn fragMain(f: FragParams) -> @location(0) vec4f {
     if (makeFrame) {
       img._render();
       img._finishRender();
-    } else if (img._renderer === "3d") {
-      if (typeof img._render === "function") img._render();
-      if (img._texture && img._texture.index === void 0) {
-        $._addTexture(img, img._texture);
-      }
-      img.modified = false;
-      if ($.frameCount <= 5) {
-        console.log(`[WebGPU 2D] image(pg3d): frame=${$.frameCount}, textureIndex=${img._texture?.index}`);
-      }
     }
-    if (img.modified && img._renderer !== "3d") {
+    if (img.modified) {
       let cnv = img.canvas;
       Q5.device.queue.copyExternalImageToTexture(
         { source: cnv },
@@ -7256,14 +7233,14 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
   let charDataBuffer = new Float32Array(Q5.MAX_CHARS * 4);
   let textDataBuffer = new Float32Array(Q5.MAX_TEXTS * 8);
   let measureText = (font, text, charCallback) => {
-    let maxWidth = 0, offsetX = 0, offsetY = 0, line = 0, printedCharCount = 0, nextCharCode = text.charCodeAt(0);
+    let maxWidth = 0, offsetX = 0, offsetY = 0, line2 = 0, printedCharCount = 0, nextCharCode = text.charCodeAt(0);
     for (let i = 0; i < text.length; ++i) {
       let charCode = nextCharCode;
       nextCharCode = i < text.length - 1 ? text.charCodeAt(i + 1) : -1;
       switch (charCode) {
         case 10:
-          lineWidths[line] = offsetX;
-          line++;
+          lineWidths[line2] = offsetX;
+          line2++;
           maxWidth = Math.max(maxWidth, offsetX);
           offsetX = 0;
           offsetY -= font.lineHeight * leadPercent;
@@ -7278,15 +7255,15 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
           break;
         default:
           if (charCallback) {
-            charCallback(offsetX, offsetY, line, font.getChar(charCode));
+            charCallback(offsetX, offsetY, line2, font.getChar(charCode));
           }
           offsetX += font.getXAdvance(charCode, nextCharCode);
           printedCharCount++;
       }
     }
-    lineWidths[line] = offsetX;
+    lineWidths[line2] = offsetX;
     maxWidth = Math.max(maxWidth, offsetX);
-    let lineCount = line + 1;
+    let lineCount = line2 + 1;
     return {
       width: maxWidth,
       height: lineCount * font.lineHeight * leadPercent,
@@ -7329,7 +7306,7 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
     let charsData = [];
     let ta = _textAlign, tb = _textBaseline, textIndex = textStack.length, o = 0, measurements;
     if (ta == "left" && !hasNewline) {
-      measurements = measureText($._font, str, (textX, textY, line, char) => {
+      measurements = measureText($._font, str, (textX, textY, line2, char) => {
         charsData[o] = textX;
         charsData[o + 1] = -textY;
         charsData[o + 2] = char.charIndex;
@@ -7345,12 +7322,12 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
       if (tb == "alphabetic") y += _textSize * yDir;
       else if (tb == "middle") offsetY = measurements.height * 0.5;
       else if (tb == "bottom") offsetY = measurements.height;
-      measureText($._font, str, (textX, textY, line, char) => {
+      measureText($._font, str, (textX, textY, line2, char) => {
         let offsetX = 0;
         if (ta == "center") {
-          offsetX = measurements.width * -0.5 - (measurements.width - measurements.lineWidths[line]) * -0.5;
+          offsetX = measurements.width * -0.5 - (measurements.width - measurements.lineWidths[line2]) * -0.5;
         } else if (ta == "right") {
-          offsetX = -measurements.lineWidths[line];
+          offsetX = -measurements.lineWidths[line2];
         }
         charsData[o] = textX + offsetX;
         charsData[o + 1] = (textY + offsetY) * yDir;
@@ -7868,25 +7845,17 @@ Q5.WebGPU = async function(scope, parent) {
     let strokeThickness = 1;
     let orbitEnabled = false;
     let rotX = 0, rotY = 0;
-    const FLOATS_PER_VERTEX = 12;
+    const FLOATS_PER_VERTEX = 10;
     let triVertices = [];
     let lineVertices = [];
-    let triBatches = [];
-    let lastBatchStart = 0;
     let triPipeline = null;
     let linePipeline = null;
     let uniformBuffer = null;
     let bindGroup = null;
-    let textureLayout = null;
-    let defaultSampler = null;
-    let defaultTexture = null;
-    let defaultTextureBindGroup = null;
-    let activeTextureBindGroup = null;
     let triVertexBuffer = null;
     let lineVertexBuffer = null;
     let triBufferCapacity = 0;
     let lineBufferCapacity = 0;
-    const textureBindGroupCache = /* @__PURE__ */ new WeakMap();
     const shaderCode = (
       /* wgsl */
       `
@@ -7903,22 +7872,18 @@ Q5.WebGPU = async function(scope, parent) {
 			};
 
 			@group(0) @binding(0) var<uniform> uniforms : Uniforms;
-			@group(1) @binding(0) var u_sampler : sampler;
-			@group(1) @binding(1) var u_texture : texture_2d<f32>;
 
 			struct VertexInput {
 				@location(0) position : vec3<f32>,
 				@location(1) normal : vec3<f32>,
-				@location(2) uv : vec2<f32>,
-				@location(3) color : vec4<f32>
+				@location(2) color : vec4<f32>
 			};
 
 			struct VertexOutput {
 				@builtin(position) position : vec4<f32>,
 				@location(0) v_color : vec4<f32>,
 				@location(1) v_normal : vec3<f32>,
-				@location(2) v_worldPos : vec3<f32>,
-				@location(3) v_uv : vec2<f32>
+				@location(2) v_worldPos : vec3<f32>
 			};
 
 			@vertex
@@ -7928,15 +7893,12 @@ Q5.WebGPU = async function(scope, parent) {
 				out.v_color = in.color;
 				out.v_normal = in.normal;
 				out.v_worldPos = in.position;
-				out.v_uv = in.uv;
 				return out;
 			}
 
 			@fragment
 			fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {
 				var n : vec3<f32> = normalize(in.v_normal);
-				var texColor : vec4<f32> = textureSample(u_texture, u_sampler, in.v_uv);
-				var baseColor : vec4<f32> = in.v_color * texColor;
 				
 				// 1. Ambient Light
 				var totalLight : vec3<f32> = uniforms.u_ambientColor.rgb;
@@ -7971,7 +7933,7 @@ Q5.WebGPU = async function(scope, parent) {
 					}
 				}
 
-				return vec4<f32>(baseColor.rgb * totalLight, baseColor.a);
+				return vec4<f32>(in.v_color.rgb * totalLight, in.v_color.a);
 			}
 
 			@vertex
@@ -7979,63 +7941,15 @@ Q5.WebGPU = async function(scope, parent) {
 				var out : VertexOutput;
 				out.position = uniforms.u_mvp * vec4<f32>(in.position, 1.0);
 				out.v_color = in.color;
-				out.v_uv = in.uv;
 				return out;
 			}
 
 			@fragment
 			fn fs_unlit(in : VertexOutput) -> @location(0) vec4<f32> {
-				var texColor : vec4<f32> = textureSample(u_texture, u_sampler, in.v_uv);
-				return in.v_color * texColor;
+				return in.v_color;
 			}
 		`
     );
-    function getOrCreateTextureBindGroup(img) {
-      if (!img) return defaultTextureBindGroup;
-      const cnv = img.canvas || img;
-      const w = cnv.width || cnv.w || img.width || 1;
-      const h = cnv.height || cnv.h || img.height || 1;
-      const format = navigator.gpu ? navigator.gpu.getPreferredCanvasFormat() : "bgra8unorm";
-      let gpuTexture = img._texture3d;
-      let isNew = false;
-      if (!gpuTexture) {
-        isNew = true;
-        gpuTexture = Q5.device.createTexture({
-          label: "q5_3d_user_texture",
-          size: [w, h, 1],
-          format,
-          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
-        });
-        img._texture3d = gpuTexture;
-      }
-      if (isNew || img.modified || img._isGraphics || img._renderer === "c2d") {
-        if (typeof Q5.device.queue.copyExternalImageToTexture === "function") {
-          try {
-            Q5.device.queue.copyExternalImageToTexture(
-              { source: cnv },
-              { texture: gpuTexture },
-              [w, h, 1]
-            );
-          } catch (e) {
-            console.warn("[3D] copyExternalImageToTexture failed:", e);
-          }
-        }
-        img.modified = false;
-      }
-      if (textureBindGroupCache.has(img)) {
-        return textureBindGroupCache.get(img);
-      }
-      const bg = Q5.device.createBindGroup({
-        label: "q5_3d_texture_bindgroup",
-        layout: textureLayout,
-        entries: [
-          { binding: 0, resource: defaultSampler },
-          { binding: 1, resource: gpuTexture.createView() }
-        ]
-      });
-      textureBindGroupCache.set(img, bg);
-      return bg;
-    }
     function initPipelines() {
       if (!Q5.device) return;
       const device = Q5.device;
@@ -8052,56 +7966,15 @@ Q5.WebGPU = async function(scope, parent) {
           buffer: { type: "uniform" }
         }]
       });
-      textureLayout = device.createBindGroupLayout({
-        label: "q5_3d_texture_layout",
-        entries: [
-          {
-            binding: 0,
-            visibility: GPUShaderStage.FRAGMENT,
-            sampler: { type: "filtering" }
-          },
-          {
-            binding: 1,
-            visibility: GPUShaderStage.FRAGMENT,
-            texture: { viewDimension: "2d", sampleType: "float" }
-          }
-        ]
-      });
-      defaultSampler = device.createSampler({
-        magFilter: "linear",
-        minFilter: "linear"
-      });
-      defaultTexture = device.createTexture({
-        label: "q5_3d_default_white_texture",
-        size: [1, 1, 1],
-        format: "rgba8unorm",
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-      });
-      device.queue.writeTexture(
-        { texture: defaultTexture },
-        new Uint8Array([255, 255, 255, 255]),
-        { bytesPerRow: 4, rowsPerImage: 1 },
-        [1, 1, 1]
-      );
-      defaultTextureBindGroup = device.createBindGroup({
-        label: "q5_3d_default_texture_bindgroup",
-        layout: textureLayout,
-        entries: [
-          { binding: 0, resource: defaultSampler },
-          { binding: 1, resource: defaultTexture.createView() }
-        ]
-      });
-      activeTextureBindGroup = defaultTextureBindGroup;
       const pipelineLayout = device.createPipelineLayout({
-        bindGroupLayouts: [uniformLayout, textureLayout]
+        bindGroupLayouts: [uniformLayout]
       });
       const vertexBufferLayout = {
         arrayStride: FLOATS_PER_VERTEX * 4,
         attributes: [
           { shaderLocation: 0, offset: 0, format: "float32x3" },
           { shaderLocation: 1, offset: 12, format: "float32x3" },
-          { shaderLocation: 2, offset: 24, format: "float32x2" },
-          { shaderLocation: 3, offset: 32, format: "float32x4" }
+          { shaderLocation: 2, offset: 24, format: "float32x4" }
         ]
       };
       triPipeline = device.createRenderPipeline({
@@ -8128,8 +8001,7 @@ Q5.WebGPU = async function(scope, parent) {
           depthWriteEnabled: true,
           depthCompare: "less",
           format: "depth24plus"
-        },
-        multisample: { count: sampleCount }
+        }
       });
       linePipeline = device.createRenderPipeline({
         label: "q5_3d_line_pipeline",
@@ -8155,8 +8027,7 @@ Q5.WebGPU = async function(scope, parent) {
           depthWriteEnabled: true,
           depthCompare: "less-equal",
           format: "depth24plus"
-        },
-        multisample: { count: sampleCount }
+        }
       });
       uniformBuffer = device.createBuffer({
         size: 192,
@@ -8168,120 +8039,36 @@ Q5.WebGPU = async function(scope, parent) {
         entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
       });
     }
-    let msaaColorTexture = null;
-    let targetTexture = null;
-    let sampleCount = 4;
-    function ensureTextures() {
-      if (!Q5.device) return;
-      const w = c.width || c.w || $.width || 400;
-      const h = c.height || c.h || $.height || 400;
-      const format = navigator.gpu ? navigator.gpu.getPreferredCanvasFormat() : "bgra8unorm";
-      if (sampleCount > 1) {
-        if (!msaaColorTexture || msaaColorTexture.width !== w || msaaColorTexture.height !== h) {
-          if (msaaColorTexture) msaaColorTexture.destroy();
-          msaaColorTexture = Q5.device.createTexture({
-            label: "q5_3d_msaa_color_texture",
-            size: [w, h, 1],
-            sampleCount,
-            format,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT
-          });
-        }
-      } else if (msaaColorTexture) {
-        msaaColorTexture.destroy();
-        msaaColorTexture = null;
-      }
-      if (!depthTexture || depthTexture.width !== w || depthTexture.height !== h) {
-        if (depthTexture) depthTexture.destroy();
-        depthTexture = Q5.device.createTexture({
-          label: "q5_3d_depth_texture",
-          size: [w, h, 1],
-          sampleCount,
-          format: "depth24plus",
-          usage: GPUTextureUsage.RENDER_ATTACHMENT
-        });
-      }
-      if ($._isGraphics) {
-        if (!targetTexture || targetTexture.width !== w || targetTexture.height !== h) {
-          if (targetTexture) targetTexture.destroy();
-          targetTexture = Q5.device.createTexture({
-            label: "q5_3d_target_texture",
-            size: [w, h, 1],
-            format,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
-          });
-          $._texture = targetTexture;
-          $.canvas._texture = targetTexture;
-          if ($._owner && typeof $._owner._addTexture === "function") {
-            $._owner._addTexture($, targetTexture);
-          }
-        }
-      }
+    function initDepth() {
+      if (!Q5.device || !c.width || !c.height) return;
+      if (depthTexture) depthTexture.destroy();
+      depthTexture = Q5.device.createTexture({
+        size: [c.width, c.height],
+        format: "depth24plus",
+        usage: GPUTextureUsage.RENDER_ATTACHMENT
+      });
     }
-    $.smooth = () => {
-      if (sampleCount !== 4) {
-        sampleCount = 4;
-        triPipeline = null;
-        linePipeline = null;
-        if (msaaColorTexture) {
-          msaaColorTexture.destroy();
-          msaaColorTexture = null;
-        }
-        if (depthTexture) {
-          depthTexture.destroy();
-          depthTexture = null;
-        }
-      }
-    };
-    $.noSmooth = () => {
-      if (sampleCount !== 1) {
-        sampleCount = 1;
-        triPipeline = null;
-        linePipeline = null;
-        if (msaaColorTexture) {
-          msaaColorTexture.destroy();
-          msaaColorTexture = null;
-        }
-        if (depthTexture) {
-          depthTexture.destroy();
-          depthTexture = null;
-        }
-      }
-    };
     $._createCanvas = function(w, h, opt = {}) {
-      if (opt.antialias === false || opt.sampleCount === 1) {
-        sampleCount = 1;
-      } else {
-        sampleCount = opt.sampleCount || 4;
-      }
       if (!navigator.gpu) return c;
+      ctx = q.ctx = q.drawingContext = c.getContext("webgpu");
+      if (!ctx) return c;
       const format = navigator.gpu.getPreferredCanvasFormat();
-      const setup = () => {
-        const isNativeOffscreen = typeof globalThis !== "undefined" && globalThis.__mystral && $._isGraphics;
-        if (!isNativeOffscreen && typeof c.getContext === "function") {
-          try {
-            ctx = q.ctx = q.drawingContext = c.getContext("webgpu");
-            if (ctx) {
-              ctx.configure({
-                device: Q5.device,
-                format,
-                alphaMode: "premultiplied"
-              });
-            }
-          } catch (e) {
-            console.error(`[q5-webgpu-3d.js:441] context configure error:`, e);
-          }
-        } else {
-        }
-        ensureTextures();
-        initPipelines();
+      const config = {
+        device: Q5.device,
+        format,
+        alphaMode: "premultiplied"
       };
       if (Q5.device) {
-        setup();
+        ctx.configure(config);
+        initDepth();
+        initPipelines();
       } else if (typeof Q5.initWebGPU === "function") {
         Q5.initWebGPU().then((supported) => {
           if (supported && Q5.device) {
-            setup();
+            config.device = Q5.device;
+            ctx.configure(config);
+            initDepth();
+            initPipelines();
           }
         });
       }
@@ -8289,7 +8076,7 @@ Q5.WebGPU = async function(scope, parent) {
     };
     $._resizeCanvas = (w, h) => {
       $._setCanvasSize(w, h);
-      ensureTextures();
+      initDepth();
     };
     $.translate = (x, y, z = 0) => {
       modelMatrix = Mat4.translate(modelMatrix, [x, y, z]);
@@ -8449,44 +8236,9 @@ Q5.WebGPU = async function(scope, parent) {
       const len = Math.hypot(tx, ty, tz) || 1;
       return [tx / len, ty / len, tz / len];
     }
-    function pushVertex(arr, p, n, uv, c2) {
-      const u = uv ? uv[0] : 0;
-      const v = uv ? uv[1] : 0;
-      arr.push(p[0], p[1], p[2], n[0], n[1], n[2], u, v, c2[0], c2[1], c2[2], c2[3]);
+    function pushVertex(arr, p, n, c2) {
+      arr.push(p[0], p[1], p[2], n[0], n[1], n[2], c2[0], c2[1], c2[2], c2[3]);
     }
-    $.texture = (img) => {
-      if (!img) {
-        $.noTexture();
-        return;
-      }
-      const bg = getOrCreateTextureBindGroup(img);
-      if (bg !== activeTextureBindGroup) {
-        const currentCount = Math.floor(triVertices.length / FLOATS_PER_VERTEX);
-        if (currentCount > lastBatchStart) {
-          triBatches.push({
-            start: lastBatchStart,
-            count: currentCount - lastBatchStart,
-            bindGroup: activeTextureBindGroup
-          });
-          lastBatchStart = currentCount;
-        }
-        activeTextureBindGroup = bg;
-      }
-    };
-    $.noTexture = () => {
-      if (activeTextureBindGroup !== defaultTextureBindGroup) {
-        const currentCount = Math.floor(triVertices.length / FLOATS_PER_VERTEX);
-        if (currentCount > lastBatchStart) {
-          triBatches.push({
-            start: lastBatchStart,
-            count: currentCount - lastBatchStart,
-            bindGroup: activeTextureBindGroup
-          });
-          lastBatchStart = currentCount;
-        }
-        activeTextureBindGroup = defaultTextureBindGroup;
-      }
-    };
     $.point = (x, y, z = 0) => {
       const pt = transformPoint([x, y, z], modelMatrix);
       const d = (strokeThickness || 1) * 2;
@@ -8497,8 +8249,6 @@ Q5.WebGPU = async function(scope, parent) {
         0,
         0,
         1,
-        0,
-        0,
         currentStroke[0],
         currentStroke[1],
         currentStroke[2],
@@ -8509,8 +8259,6 @@ Q5.WebGPU = async function(scope, parent) {
         0,
         0,
         1,
-        0,
-        0,
         currentStroke[0],
         currentStroke[1],
         currentStroke[2],
@@ -8531,8 +8279,6 @@ Q5.WebGPU = async function(scope, parent) {
         0,
         0,
         1,
-        0,
-        0,
         currentStroke[0],
         currentStroke[1],
         currentStroke[2],
@@ -8543,40 +8289,11 @@ Q5.WebGPU = async function(scope, parent) {
         0,
         0,
         1,
-        0,
-        0,
         currentStroke[0],
         currentStroke[1],
         currentStroke[2],
         currentStroke[3]
       );
-    };
-    $.plane = (w = 100, h = w) => {
-      const hw = w / 2, hh = h / 2;
-      const p0 = [-hw, -hh, 0], p1 = [hw, -hh, 0], p2 = [hw, hh, 0], p3 = [-hw, hh, 0];
-      const tp0 = transformPoint(p0, modelMatrix);
-      const tp1 = transformPoint(p1, modelMatrix);
-      const tp2 = transformPoint(p2, modelMatrix);
-      const tp3 = transformPoint(p3, modelMatrix);
-      const tn = transformNormal([0, 0, 1], modelMatrix);
-      if (hasFill) {
-        pushVertex(triVertices, tp0, tn, [0, 0], currentFill);
-        pushVertex(triVertices, tp1, tn, [1, 0], currentFill);
-        pushVertex(triVertices, tp2, tn, [1, 1], currentFill);
-        pushVertex(triVertices, tp0, tn, [0, 0], currentFill);
-        pushVertex(triVertices, tp2, tn, [1, 1], currentFill);
-        pushVertex(triVertices, tp3, tn, [0, 1], currentFill);
-      }
-      if (hasStroke) {
-        pushVertex(lineVertices, tp0, [0, 0, 1], [0, 0], currentStroke);
-        pushVertex(lineVertices, tp1, [0, 0, 1], [0, 0], currentStroke);
-        pushVertex(lineVertices, tp1, [0, 0, 1], [0, 0], currentStroke);
-        pushVertex(lineVertices, tp2, [0, 0, 1], [0, 0], currentStroke);
-        pushVertex(lineVertices, tp2, [0, 0, 1], [0, 0], currentStroke);
-        pushVertex(lineVertices, tp3, [0, 0, 1], [0, 0], currentStroke);
-        pushVertex(lineVertices, tp3, [0, 0, 1], [0, 0], currentStroke);
-        pushVertex(lineVertices, tp0, [0, 0, 1], [0, 0], currentStroke);
-      }
     };
     $.box = (w = 50, h = w, d = w) => {
       const hw = w / 2, hh = h / 2, hd = d / 2;
@@ -8596,524 +8313,76 @@ Q5.WebGPU = async function(scope, parent) {
         const tp3 = transformPoint(p3, modelMatrix);
         const tn = transformNormal(norm, modelMatrix);
         if (hasFill) {
-          pushVertex(triVertices, tp0, tn, [0, 0], currentFill);
-          pushVertex(triVertices, tp1, tn, [1, 0], currentFill);
-          pushVertex(triVertices, tp2, tn, [1, 1], currentFill);
-          pushVertex(triVertices, tp0, tn, [0, 0], currentFill);
-          pushVertex(triVertices, tp2, tn, [1, 1], currentFill);
-          pushVertex(triVertices, tp3, tn, [0, 1], currentFill);
+          pushVertex(triVertices, tp0, tn, currentFill);
+          pushVertex(triVertices, tp1, tn, currentFill);
+          pushVertex(triVertices, tp2, tn, currentFill);
+          pushVertex(triVertices, tp0, tn, currentFill);
+          pushVertex(triVertices, tp2, tn, currentFill);
+          pushVertex(triVertices, tp3, tn, currentFill);
         }
         if (hasStroke) {
-          pushVertex(lineVertices, tp0, [0, 0, 1], [0, 0], currentStroke);
-          pushVertex(lineVertices, tp1, [0, 0, 1], [0, 0], currentStroke);
-          pushVertex(lineVertices, tp1, [0, 0, 1], [0, 0], currentStroke);
-          pushVertex(lineVertices, tp2, [0, 0, 1], [0, 0], currentStroke);
-          pushVertex(lineVertices, tp2, [0, 0, 1], [0, 0], currentStroke);
-          pushVertex(lineVertices, tp3, [0, 0, 1], [0, 0], currentStroke);
-          pushVertex(lineVertices, tp3, [0, 0, 1], [0, 0], currentStroke);
-          pushVertex(lineVertices, tp0, [0, 0, 1], [0, 0], currentStroke);
+          pushVertex(lineVertices, tp0, [0, 0, 1], currentStroke);
+          pushVertex(lineVertices, tp1, [0, 0, 1], currentStroke);
+          pushVertex(lineVertices, tp1, [0, 0, 1], currentStroke);
+          pushVertex(lineVertices, tp2, [0, 0, 1], currentStroke);
+          pushVertex(lineVertices, tp2, [0, 0, 1], currentStroke);
+          pushVertex(lineVertices, tp3, [0, 0, 1], currentStroke);
+          pushVertex(lineVertices, tp3, [0, 0, 1], currentStroke);
+          pushVertex(lineVertices, tp0, [0, 0, 1], currentStroke);
         }
       }
     };
     $.sphere = (r = 50, detailX = 16, detailY = 12) => {
       for (let i = 0; i < detailY; i++) {
-        const v0 = i / detailY;
-        const v1 = (i + 1) / detailY;
-        const lat0 = Math.PI * (-0.5 + v0);
+        const lat0 = Math.PI * (-0.5 + i / detailY);
         const z0 = Math.sin(lat0);
         const zr0 = Math.cos(lat0);
-        const lat1 = Math.PI * (-0.5 + v1);
+        const lat1 = Math.PI * (-0.5 + (i + 1) / detailY);
         const z1 = Math.sin(lat1);
         const zr1 = Math.cos(lat1);
         for (let j = 0; j < detailX; j++) {
-          const u0 = j / detailX;
-          const u1 = (j + 1) / detailX;
-          const lng0 = 2 * Math.PI * u0;
+          const lng0 = 2 * Math.PI * (j / detailX);
           const x0 = Math.cos(lng0), y0 = Math.sin(lng0);
-          const lng1 = 2 * Math.PI * u1;
+          const lng1 = 2 * Math.PI * ((j + 1) / detailX);
           const x1 = Math.cos(lng1), y1 = Math.sin(lng1);
-          const p1 = [x0 * zr0 * r, y0 * zr0 * r, z0 * r];
-          const p2 = [x1 * zr0 * r, y1 * zr0 * r, z0 * r];
-          const p3 = [x1 * zr1 * r, y1 * zr1 * r, z1 * r];
-          const p4 = [x0 * zr1 * r, y0 * zr1 * r, z1 * r];
-          const tp1 = transformPoint(p1, modelMatrix);
-          const tp2 = transformPoint(p2, modelMatrix);
-          const tp3 = transformPoint(p3, modelMatrix);
-          const tp4 = transformPoint(p4, modelMatrix);
+          const v1 = [x0 * zr0 * r, y0 * zr0 * r, z0 * r];
+          const v2 = [x1 * zr0 * r, y1 * zr0 * r, z0 * r];
+          const v3 = [x1 * zr1 * r, y1 * zr1 * r, z1 * r];
+          const v4 = [x0 * zr1 * r, y0 * zr1 * r, z1 * r];
+          const tp1 = transformPoint(v1, modelMatrix);
+          const tp2 = transformPoint(v2, modelMatrix);
+          const tp3 = transformPoint(v3, modelMatrix);
+          const tp4 = transformPoint(v4, modelMatrix);
           const tn1 = transformNormal([x0 * zr0, y0 * zr0, z0], modelMatrix);
           const tn2 = transformNormal([x1 * zr0, y1 * zr0, z0], modelMatrix);
           const tn3 = transformNormal([x1 * zr1, y1 * zr1, z1], modelMatrix);
           const tn4 = transformNormal([x0 * zr1, y0 * zr1, z1], modelMatrix);
           if (hasFill) {
-            pushVertex(triVertices, tp1, tn1, [u0, v0], currentFill);
-            pushVertex(triVertices, tp2, tn2, [u1, v0], currentFill);
-            pushVertex(triVertices, tp3, tn3, [u1, v1], currentFill);
-            pushVertex(triVertices, tp1, tn1, [u0, v0], currentFill);
-            pushVertex(triVertices, tp3, tn3, [u1, v1], currentFill);
-            pushVertex(triVertices, tp4, tn4, [u0, v1], currentFill);
+            pushVertex(triVertices, tp1, tn1, currentFill);
+            pushVertex(triVertices, tp2, tn2, currentFill);
+            pushVertex(triVertices, tp3, tn3, currentFill);
+            pushVertex(triVertices, tp1, tn1, currentFill);
+            pushVertex(triVertices, tp3, tn3, currentFill);
+            pushVertex(triVertices, tp4, tn4, currentFill);
           }
-        }
-      }
-    };
-    $.cylinder = (r = 50, h = 100, detailX = 24) => {
-      const hh = h / 2;
-      for (let i = 0; i < detailX; i++) {
-        const u0 = i / detailX;
-        const u1 = (i + 1) / detailX;
-        const a0 = 2 * Math.PI * u0;
-        const a1 = 2 * Math.PI * u1;
-        const x0 = Math.cos(a0), z0 = Math.sin(a0);
-        const x1 = Math.cos(a1), z1 = Math.sin(a1);
-        const p0 = [x0 * r, -hh, z0 * r], p1 = [x1 * r, -hh, z1 * r];
-        const p2 = [x1 * r, hh, z1 * r], p3 = [x0 * r, hh, z0 * r];
-        const tp0 = transformPoint(p0, modelMatrix), tp1 = transformPoint(p1, modelMatrix);
-        const tp2 = transformPoint(p2, modelMatrix), tp3 = transformPoint(p3, modelMatrix);
-        const tn0 = transformNormal([x0, 0, z0], modelMatrix);
-        const tn1 = transformNormal([x1, 0, z1], modelMatrix);
-        if (hasFill) {
-          pushVertex(triVertices, tp0, tn0, [u0, 0], currentFill);
-          pushVertex(triVertices, tp1, tn1, [u1, 0], currentFill);
-          pushVertex(triVertices, tp2, tn1, [u1, 1], currentFill);
-          pushVertex(triVertices, tp0, tn0, [u0, 0], currentFill);
-          pushVertex(triVertices, tp2, tn1, [u1, 1], currentFill);
-          pushVertex(triVertices, tp3, tn0, [u0, 1], currentFill);
-          const topCenter = transformPoint([0, hh, 0], modelMatrix);
-          const botCenter = transformPoint([0, -hh, 0], modelMatrix);
-          const topNorm = transformNormal([0, 1, 0], modelMatrix);
-          const botNorm = transformNormal([0, -1, 0], modelMatrix);
-          pushVertex(triVertices, topCenter, topNorm, [0.5, 0.5], currentFill);
-          pushVertex(triVertices, tp3, topNorm, [x0 * 0.5 + 0.5, z0 * 0.5 + 0.5], currentFill);
-          pushVertex(triVertices, tp2, topNorm, [x1 * 0.5 + 0.5, z1 * 0.5 + 0.5], currentFill);
-          pushVertex(triVertices, botCenter, botNorm, [0.5, 0.5], currentFill);
-          pushVertex(triVertices, tp1, botNorm, [x1 * 0.5 + 0.5, z1 * 0.5 + 0.5], currentFill);
-          pushVertex(triVertices, tp0, botNorm, [x0 * 0.5 + 0.5, z0 * 0.5 + 0.5], currentFill);
-        }
-      }
-    };
-    $.cone = (r = 50, h = 100, detailX = 24) => {
-      const hh = h / 2;
-      for (let i = 0; i < detailX; i++) {
-        const u0 = i / detailX;
-        const u1 = (i + 1) / detailX;
-        const a0 = 2 * Math.PI * u0;
-        const a1 = 2 * Math.PI * u1;
-        const x0 = Math.cos(a0), z0 = Math.sin(a0);
-        const x1 = Math.cos(a1), z1 = Math.sin(a1);
-        const tip = transformPoint([0, hh, 0], modelMatrix);
-        const p0 = transformPoint([x0 * r, -hh, z0 * r], modelMatrix);
-        const p1 = transformPoint([x1 * r, -hh, z1 * r], modelMatrix);
-        const n0 = transformNormal([x0, r / h, z0], modelMatrix);
-        const n1 = transformNormal([x1, r / h, z1], modelMatrix);
-        if (hasFill) {
-          pushVertex(triVertices, tip, n0, [(u0 + u1) * 0.5, 1], currentFill);
-          pushVertex(triVertices, p0, n0, [u0, 0], currentFill);
-          pushVertex(triVertices, p1, n1, [u1, 0], currentFill);
-          const botCenter = transformPoint([0, -hh, 0], modelMatrix);
-          const botNorm = transformNormal([0, -1, 0], modelMatrix);
-          pushVertex(triVertices, botCenter, botNorm, [0.5, 0.5], currentFill);
-          pushVertex(triVertices, p1, botNorm, [x1 * 0.5 + 0.5, z1 * 0.5 + 0.5], currentFill);
-          pushVertex(triVertices, p0, botNorm, [x0 * 0.5 + 0.5, z0 * 0.5 + 0.5], currentFill);
-        }
-      }
-    };
-    $.torus = (r1 = 50, r2 = 15, detailX = 24, detailY = 16) => {
-      for (let i = 0; i < detailY; i++) {
-        const v0 = i / detailY;
-        const v1 = (i + 1) / detailY;
-        const a0 = 2 * Math.PI * v0;
-        const a1 = 2 * Math.PI * v1;
-        for (let j = 0; j < detailX; j++) {
-          const u0 = j / detailX;
-          const u1 = (j + 1) / detailX;
-          const b0 = 2 * Math.PI * u0;
-          const b1 = 2 * Math.PI * u1;
-          const getPos = (u, v) => [
-            (r1 + r2 * Math.cos(v)) * Math.cos(u),
-            r2 * Math.sin(v),
-            (r1 + r2 * Math.cos(v)) * Math.sin(u)
-          ];
-          const getNorm = (u, v) => [
-            Math.cos(v) * Math.cos(u),
-            Math.sin(v),
-            Math.cos(v) * Math.sin(u)
-          ];
-          const tp0 = transformPoint(getPos(b0, a0), modelMatrix);
-          const tp1 = transformPoint(getPos(b1, a0), modelMatrix);
-          const tp2 = transformPoint(getPos(b1, a1), modelMatrix);
-          const tp3 = transformPoint(getPos(b0, a1), modelMatrix);
-          const tn0 = transformNormal(getNorm(b0, a0), modelMatrix);
-          const tn1 = transformNormal(getNorm(b1, a0), modelMatrix);
-          const tn2 = transformNormal(getNorm(b1, a1), modelMatrix);
-          const tn3 = transformNormal(getNorm(b0, a1), modelMatrix);
-          if (hasFill) {
-            pushVertex(triVertices, tp0, tn0, [u0, v0], currentFill);
-            pushVertex(triVertices, tp1, tn1, [u1, v0], currentFill);
-            pushVertex(triVertices, tp2, tn2, [u1, v1], currentFill);
-            pushVertex(triVertices, tp0, tn0, [u0, v0], currentFill);
-            pushVertex(triVertices, tp2, tn2, [u1, v1], currentFill);
-            pushVertex(triVertices, tp3, tn3, [u0, v1], currentFill);
-          }
-        }
-      }
-    };
-    Q5.POINTS = $.POINTS = "POINTS";
-    Q5.LINES = $.LINES = "LINES";
-    Q5.TRIANGLES = $.TRIANGLES = "TRIANGLES";
-    Q5.TRIANGLE_STRIP = $.TRIANGLE_STRIP = "TRIANGLE_STRIP";
-    Q5.TRIANGLE_FAN = $.TRIANGLE_FAN = "TRIANGLE_FAN";
-    Q5.QUADS = $.QUADS = "QUADS";
-    if (typeof globalThis !== "undefined") {
-      globalThis.POINTS ??= "POINTS";
-      globalThis.LINES ??= "LINES";
-      globalThis.TRIANGLES ??= "TRIANGLES";
-      globalThis.TRIANGLE_STRIP ??= "TRIANGLE_STRIP";
-      globalThis.TRIANGLE_FAN ??= "TRIANGLE_FAN";
-      globalThis.QUADS ??= "QUADS";
-    }
-    let currentNormal = [0, 0, 1];
-    let currentUV = [0, 0];
-    let shapeMode = null;
-    let shapeVertices = [];
-    $.normal = (x, y, z) => {
-      if (Array.isArray(x)) {
-        currentNormal = [x[0], x[1], x[2]];
-      } else {
-        currentNormal = [x, y, z];
-      }
-    };
-    $.beginShape = (mode = "triangles") => {
-      shapeMode = typeof mode === "string" ? mode.toUpperCase() : "TRIANGLES";
-      shapeVertices = [];
-    };
-    $.vertex = (x, y, z = 0, u = 0, v = 0) => {
-      let pos, uv;
-      if (arguments.length >= 5) {
-        pos = [x, y, z];
-        uv = [u, v];
-      } else if (arguments.length === 4) {
-        pos = [x, y, 0];
-        uv = [z, u];
-      } else if (arguments.length === 3) {
-        pos = [x, y, z];
-        uv = [currentUV[0], currentUV[1]];
-      } else {
-        pos = [x, y, 0];
-        uv = [currentUV[0], currentUV[1]];
-      }
-      const tp = transformPoint(pos, modelMatrix);
-      const tn = transformNormal(currentNormal, modelMatrix);
-      shapeVertices.push({
-        pos: tp,
-        norm: tn,
-        uv,
-        fill: currentFill.slice(),
-        stroke: currentStroke.slice()
-      });
-    };
-    $.endShape = (close = false) => {
-      const n = shapeVertices.length;
-      if (n === 0) return;
-      const mode = shapeMode || "TRIANGLES";
-      if (mode === "POINTS") {
-        for (let i = 0; i < n; i++) {
-          const v = shapeVertices[i];
-          const d = (strokeThickness || 1) * 2;
-          lineVertices.push(
-            v.pos[0] - d,
-            v.pos[1],
-            v.pos[2],
-            0,
-            0,
-            1,
-            v.uv[0],
-            v.uv[1],
-            v.stroke[0],
-            v.stroke[1],
-            v.stroke[2],
-            v.stroke[3],
-            v.pos[0] + d,
-            v.pos[1],
-            v.pos[2],
-            0,
-            0,
-            1,
-            v.uv[0],
-            v.uv[1],
-            v.stroke[0],
-            v.stroke[1],
-            v.stroke[2],
-            v.stroke[3]
-          );
-        }
-      } else if (mode === "LINES") {
-        for (let i = 0; i + 1 < n; i += 2) {
-          const v1 = shapeVertices[i], v2 = shapeVertices[i + 1];
-          pushVertex(lineVertices, v1.pos, [0, 0, 1], v1.uv, v1.stroke);
-          pushVertex(lineVertices, v2.pos, [0, 0, 1], v2.uv, v2.stroke);
-        }
-      } else if (mode === "LINE_STRIP") {
-        for (let i = 0; i + 1 < n; i++) {
-          const v1 = shapeVertices[i], v2 = shapeVertices[i + 1];
-          pushVertex(lineVertices, v1.pos, [0, 0, 1], v1.uv, v1.stroke);
-          pushVertex(lineVertices, v2.pos, [0, 0, 1], v2.uv, v2.stroke);
-        }
-        if (close && n > 2) {
-          const v1 = shapeVertices[n - 1], v2 = shapeVertices[0];
-          pushVertex(lineVertices, v1.pos, [0, 0, 1], v1.uv, v1.stroke);
-          pushVertex(lineVertices, v2.pos, [0, 0, 1], v2.uv, v2.stroke);
-        }
-      } else if (mode === "TRIANGLE_STRIP") {
-        for (let i = 0; i + 2 < n; i++) {
-          const v1 = shapeVertices[i];
-          const v2 = i % 2 === 0 ? shapeVertices[i + 1] : shapeVertices[i + 2];
-          const v3 = i % 2 === 0 ? shapeVertices[i + 2] : shapeVertices[i + 1];
-          if (hasFill) {
-            pushVertex(triVertices, v1.pos, v1.norm, v1.uv, v1.fill);
-            pushVertex(triVertices, v2.pos, v2.norm, v2.uv, v2.fill);
-            pushVertex(triVertices, v3.pos, v3.norm, v3.uv, v3.fill);
-          }
-        }
-      } else if (mode === "TRIANGLE_FAN") {
-        const v0 = shapeVertices[0];
-        for (let i = 1; i + 1 < n; i++) {
-          const v1 = shapeVertices[i], v2 = shapeVertices[i + 1];
-          if (hasFill) {
-            pushVertex(triVertices, v0.pos, v0.norm, v0.uv, v0.fill);
-            pushVertex(triVertices, v1.pos, v1.norm, v1.uv, v1.fill);
-            pushVertex(triVertices, v2.pos, v2.norm, v2.uv, v2.fill);
-          }
-        }
-      } else if (mode === "QUADS") {
-        for (let i = 0; i + 3 < n; i += 4) {
-          const v0 = shapeVertices[i], v1 = shapeVertices[i + 1], v2 = shapeVertices[i + 2], v3 = shapeVertices[i + 3];
-          if (hasFill) {
-            pushVertex(triVertices, v0.pos, v0.norm, v0.uv, v0.fill);
-            pushVertex(triVertices, v1.pos, v1.norm, v1.uv, v1.fill);
-            pushVertex(triVertices, v2.pos, v2.norm, v2.uv, v2.fill);
-            pushVertex(triVertices, v0.pos, v0.norm, v0.uv, v0.fill);
-            pushVertex(triVertices, v2.pos, v2.norm, v2.uv, v2.fill);
-            pushVertex(triVertices, v3.pos, v3.norm, v3.uv, v3.fill);
-          }
-          if (hasStroke) {
-            pushVertex(lineVertices, v0.pos, [0, 0, 1], v0.uv, v0.stroke);
-            pushVertex(lineVertices, v1.pos, [0, 0, 1], v1.uv, v1.stroke);
-            pushVertex(lineVertices, v1.pos, [0, 0, 1], v1.uv, v1.stroke);
-            pushVertex(lineVertices, v2.pos, [0, 0, 1], v2.uv, v2.stroke);
-            pushVertex(lineVertices, v2.pos, [0, 0, 1], v2.uv, v2.stroke);
-            pushVertex(lineVertices, v3.pos, [0, 0, 1], v3.uv, v3.stroke);
-            pushVertex(lineVertices, v3.pos, [0, 0, 1], v3.uv, v3.stroke);
-            pushVertex(lineVertices, v0.pos, [0, 0, 1], v0.uv, v0.stroke);
-          }
-        }
-      } else {
-        if (n === 3 || mode === "TRIANGLES") {
-          for (let i = 0; i + 2 < n; i += 3) {
-            const v0 = shapeVertices[i], v1 = shapeVertices[i + 1], v2 = shapeVertices[i + 2];
-            if (hasFill) {
-              pushVertex(triVertices, v0.pos, v0.norm, v0.uv, v0.fill);
-              pushVertex(triVertices, v1.pos, v1.norm, v1.uv, v1.fill);
-              pushVertex(triVertices, v2.pos, v2.norm, v2.uv, v2.fill);
-            }
-            if (hasStroke) {
-              pushVertex(lineVertices, v0.pos, [0, 0, 1], v0.uv, v0.stroke);
-              pushVertex(lineVertices, v1.pos, [0, 0, 1], v1.uv, v1.stroke);
-              pushVertex(lineVertices, v1.pos, [0, 0, 1], v1.uv, v1.stroke);
-              pushVertex(lineVertices, v2.pos, [0, 0, 1], v2.uv, v2.stroke);
-              pushVertex(lineVertices, v2.pos, [0, 0, 1], v2.uv, v2.stroke);
-              pushVertex(lineVertices, v0.pos, [0, 0, 1], v0.uv, v0.stroke);
-            }
-          }
-        } else {
-          const v0 = shapeVertices[0];
-          for (let i = 1; i + 1 < n; i++) {
-            const v1 = shapeVertices[i], v2 = shapeVertices[i + 1];
-            if (hasFill) {
-              pushVertex(triVertices, v0.pos, v0.norm, v0.uv, v0.fill);
-              pushVertex(triVertices, v1.pos, v1.norm, v1.uv, v1.fill);
-              pushVertex(triVertices, v2.pos, v2.norm, v2.uv, v2.fill);
-            }
-          }
-        }
-      }
-      shapeVertices = [];
-    };
-    class Mesh {
-      constructor(opt = {}) {
-        this.positions = opt.positions || null;
-        this.normals = opt.normals || null;
-        this.uvs = opt.uvs || null;
-        this.colors = opt.colors || null;
-        this.indices = opt.indices || null;
-        this.texture = opt.texture || null;
-        if (this.positions && !this.normals) {
-          this.computeNormals();
-        }
-      }
-      setPositions(p) {
-        this.positions = p;
-        return this;
-      }
-      setNormals(n) {
-        this.normals = n;
-        return this;
-      }
-      setUVs(u) {
-        this.uvs = u;
-        return this;
-      }
-      setColors(c2) {
-        this.colors = c2;
-        return this;
-      }
-      setIndices(i) {
-        this.indices = i;
-        return this;
-      }
-      setTexture(t) {
-        this.texture = t;
-        return this;
-      }
-      computeNormals() {
-        const pos = this.positions;
-        if (!pos) return this;
-        const numVerts = Math.floor(pos.length / 3);
-        const norm = new Float32Array(numVerts * 3);
-        if (this.indices) {
-          const idx = this.indices;
-          for (let i = 0; i + 2 < idx.length; i += 3) {
-            const i0 = idx[i], i1 = idx[i + 1], i2 = idx[i + 2];
-            const ax = pos[i0 * 3], ay = pos[i0 * 3 + 1], az = pos[i0 * 3 + 2];
-            const bx = pos[i1 * 3], by = pos[i1 * 3 + 1], bz = pos[i1 * 3 + 2];
-            const cx = pos[i2 * 3], cy = pos[i2 * 3 + 1], cz = pos[i2 * 3 + 2];
-            const abx = bx - ax, aby = by - ay, abz = bz - az;
-            const acx = cx - ax, acy = cy - ay, acz = cz - az;
-            const nx = aby * acz - abz * acy;
-            const ny = abz * acx - abx * acz;
-            const nz = abx * acy - aby * acx;
-            norm[i0 * 3] += nx;
-            norm[i0 * 3 + 1] += ny;
-            norm[i0 * 3 + 2] += nz;
-            norm[i1 * 3] += nx;
-            norm[i1 * 3 + 1] += ny;
-            norm[i1 * 3 + 2] += nz;
-            norm[i2 * 3] += nx;
-            norm[i2 * 3 + 1] += ny;
-            norm[i2 * 3 + 2] += nz;
-          }
-        } else {
-          for (let i = 0; i + 2 < numVerts; i += 3) {
-            const ax = pos[i * 3], ay = pos[i * 3 + 1], az = pos[i * 3 + 2];
-            const bx = pos[(i + 1) * 3], by = pos[(i + 1) * 3 + 1], bz = pos[(i + 1) * 3 + 2];
-            const cx = pos[(i + 2) * 3], cy = pos[(i + 2) * 3 + 1], cz = pos[(i + 2) * 3 + 2];
-            const abx = bx - ax, aby = by - ay, abz = bz - az;
-            const acx = cx - ax, acy = cy - ay, acz = cz - az;
-            const nx = aby * acz - abz * acy;
-            const ny = abz * acx - abx * acz;
-            const nz = abx * acy - aby * acx;
-            norm[i * 3] = nx;
-            norm[i * 3 + 1] = ny;
-            norm[i * 3 + 2] = nz;
-            norm[(i + 1) * 3] = nx;
-            norm[(i + 1) * 3 + 1] = ny;
-            norm[(i + 1) * 3 + 2] = nz;
-            norm[(i + 2) * 3] = nx;
-            norm[(i + 2) * 3 + 1] = ny;
-            norm[(i + 2) * 3 + 2] = nz;
-          }
-        }
-        for (let i = 0; i < numVerts; i++) {
-          const x = norm[i * 3], y = norm[i * 3 + 1], z = norm[i * 3 + 2];
-          const len = Math.hypot(x, y, z) || 1;
-          norm[i * 3] = x / len;
-          norm[i * 3 + 1] = y / len;
-          norm[i * 3 + 2] = z / len;
-        }
-        this.normals = norm;
-        return this;
-      }
-    }
-    $.createMesh = (opt) => new Mesh(opt);
-    $.Mesh = Mesh;
-    $.drawMesh = (meshOrOpt) => {
-      if (!meshOrOpt) return;
-      const pos = meshOrOpt.positions;
-      if (!pos || pos.length < 3) return;
-      let norm = meshOrOpt.normals;
-      if (!norm) {
-        if (typeof meshOrOpt.computeNormals === "function") {
-          meshOrOpt.computeNormals();
-          norm = meshOrOpt.normals;
-        }
-      }
-      const uvs = meshOrOpt.uvs;
-      const col = meshOrOpt.colors;
-      const idx = meshOrOpt.indices;
-      if (meshOrOpt.texture) {
-        $.texture(meshOrOpt.texture);
-      }
-      const numVerts = Math.floor(pos.length / 3);
-      if (idx && idx.length > 0) {
-        for (let k = 0; k < idx.length; k++) {
-          const i = idx[k];
-          const p = [pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]];
-          const n = norm ? [norm[i * 3], norm[i * 3 + 1], norm[i * 3 + 2]] : [0, 0, 1];
-          const uv = uvs ? [uvs[i * 2], uvs[i * 2 + 1]] : [0, 0];
-          const c2 = col ? [col[i * 4], col[i * 4 + 1], col[i * 4 + 2], col[i * 4 + 3]] : currentFill;
-          const tp = transformPoint(p, modelMatrix);
-          const tn = transformNormal(n, modelMatrix);
-          pushVertex(triVertices, tp, tn, uv, c2);
-        }
-      } else {
-        for (let i = 0; i < numVerts; i++) {
-          const p = [pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]];
-          const n = norm ? [norm[i * 3], norm[i * 3 + 1], norm[i * 3 + 2]] : [0, 0, 1];
-          const uv = uvs ? [uvs[i * 2], uvs[i * 2 + 1]] : [0, 0];
-          const c2 = col ? [col[i * 4], col[i * 4 + 1], col[i * 4 + 2], col[i * 4 + 3]] : currentFill;
-          const tp = transformPoint(p, modelMatrix);
-          const tn = transformNormal(n, modelMatrix);
-          pushVertex(triVertices, tp, tn, uv, c2);
         }
       }
     };
     $.clear = () => {
       triVertices.length = 0;
       lineVertices.length = 0;
-      triBatches.length = 0;
-      lastBatchStart = 0;
-      activeTextureBindGroup = defaultTextureBindGroup;
     };
-    let renderCount = 0;
     $._render = () => {
-      if (!Q5.device) {
-        console.warn("[3D] _render: Q5.device not ready");
-        return;
-      }
-      if (triVertices.length === 0 && lineVertices.length === 0) {
-        return;
-      }
+      if (!Q5.device || !ctx) return;
       if (!triPipeline) initPipelines();
-      ensureTextures();
+      if (!depthTexture) initDepth();
       const device = Q5.device;
       let currentTextureView;
-      let targetType = "none";
-      if (ctx) {
-        try {
-          currentTextureView = ctx.getCurrentTexture().createView();
-          targetType = "swapchain(ctx)";
-        } catch (e) {
-          if (targetTexture) {
-            currentTextureView = targetTexture.createView();
-            targetType = "targetTexture(fallback)";
-          } else return;
-        }
-      } else if (targetTexture) {
-        currentTextureView = targetTexture.createView();
-        targetType = "targetTexture";
-      } else {
-        console.warn("[3D] _render: no texture view available");
+      try {
+        currentTextureView = ctx.getCurrentTexture().createView();
+      } catch (e) {
         return;
       }
-      renderCount++;
       const aspect = (c.w || 400) / (c.h || 400);
       const proj = isOrtho ? Mat4.ortho(orthoBounds.left, orthoBounds.right, orthoBounds.bottom, orthoBounds.top, orthoBounds.near, orthoBounds.far) : Mat4.perspective(fovy, aspect, near, far);
       let view = Mat4.lookAt(eye, center, up);
@@ -9133,26 +8402,14 @@ Q5.WebGPU = async function(scope, parent) {
       uniformData.set(spotLightDir, 40);
       uniformData.set(spotLightColor, 44);
       device.queue.writeBuffer(uniformBuffer, 0, uniformData);
-      let colorAttachment;
-      if (sampleCount > 1 && msaaColorTexture) {
-        colorAttachment = {
-          view: msaaColorTexture.createView(),
-          resolveTarget: currentTextureView,
-          clearValue: { r: 0, g: 0, b: 0, a: 0 },
-          loadOp: "clear",
-          storeOp: "store"
-        };
-      } else {
-        colorAttachment = {
+      const commandEncoder = device.createCommandEncoder({ label: "q5_3d_render_encoder" });
+      const renderPass = commandEncoder.beginRenderPass({
+        colorAttachments: [{
           view: currentTextureView,
           clearValue: { r: 0, g: 0, b: 0, a: 0 },
           loadOp: "clear",
           storeOp: "store"
-        };
-      }
-      const commandEncoder = device.createCommandEncoder({ label: "q5_3d_render_encoder" });
-      const renderPass = commandEncoder.beginRenderPass({
-        colorAttachments: [colorAttachment],
+        }],
         depthStencilAttachment: {
           view: depthTexture.createView(),
           depthClearValue: 1,
@@ -9161,14 +8418,6 @@ Q5.WebGPU = async function(scope, parent) {
         }
       });
       if (triVertices.length > 0) {
-        const totalVerts = Math.floor(triVertices.length / FLOATS_PER_VERTEX);
-        if (totalVerts > lastBatchStart) {
-          triBatches.push({
-            start: lastBatchStart,
-            count: totalVerts - lastBatchStart,
-            bindGroup: activeTextureBindGroup
-          });
-        }
         const triByteLength = triVertices.length * 4;
         if (!triVertexBuffer || triBufferCapacity < triByteLength) {
           if (triVertexBuffer) triVertexBuffer.destroy();
@@ -9182,12 +8431,7 @@ Q5.WebGPU = async function(scope, parent) {
         renderPass.setPipeline(triPipeline);
         renderPass.setBindGroup(0, bindGroup);
         renderPass.setVertexBuffer(0, triVertexBuffer);
-        for (const batch of triBatches) {
-          renderPass.setBindGroup(1, batch.bindGroup);
-          renderPass.draw(batch.count, 1, batch.start, 0);
-        }
-        triBatches.length = 0;
-        lastBatchStart = 0;
+        renderPass.draw(triVertices.length / FLOATS_PER_VERTEX);
       }
       if (lineVertices.length > 0) {
         const lineByteLength = lineVertices.length * 4;
@@ -9202,7 +8446,6 @@ Q5.WebGPU = async function(scope, parent) {
         device.queue.writeBuffer(lineVertexBuffer, 0, new Float32Array(lineVertices));
         renderPass.setPipeline(linePipeline);
         renderPass.setBindGroup(0, bindGroup);
-        renderPass.setBindGroup(1, defaultTextureBindGroup);
         renderPass.setVertexBuffer(0, lineVertexBuffer);
         renderPass.draw(lineVertices.length / FLOATS_PER_VERTEX);
       }
@@ -9210,7 +8453,6 @@ Q5.WebGPU = async function(scope, parent) {
       device.queue.submit([commandEncoder.finish()]);
       triVertices.length = 0;
       lineVertices.length = 0;
-      activeTextureBindGroup = defaultTextureBindGroup;
     };
     $.flush = $._render;
   };
@@ -9777,8 +9019,8 @@ async def __run(q):
               lines[j] = lines[j].slice(indent.length);
             }
           } else {
-            let line = code.split("\n")[lineNum - 1].trim();
-            lines.unshift(line, "");
+            let line2 = code.split("\n")[lineNum - 1].trim();
+            lines.unshift(line2, "");
           }
           err = lines.join("\n");
           break;
@@ -9890,13 +9132,31 @@ async function initCanvas2(w, h) {
 }
 globalThis.initCanvas = initCanvas2;
 
-// minimal.js
+// 3d-direct.js
 var Canvas3 = initCanvas;
-await Canvas3();
-background("#101820");
-noStroke();
-fill("#ff6b6b");
-circle(0, 0, 80);
+await Canvas3(void 0, void 0, "3d");
+var width = window.innerWidth;
+var height = window.innerHeight;
+camera(0, 0, 500, 0, 0, 0, 0, 1, 0);
+q5.draw = function() {
+  background("#121620");
+  orbitControl(true);
+  directionalLight(255, 240, 220, 0.5, 0.8, 1);
+  ambientLight(120, 120, 140);
+  push();
+  rotateX(frameCount * 0.01);
+  rotateY(frameCount * 0.015);
+  fill(60, 150, 240);
+  stroke(255, 255, 255);
+  box(160);
+  stroke(255, 80, 80);
+  line(-200, 0, 0, 200, 0, 0);
+  stroke(80, 255, 80);
+  line(0, -200, 0, 0, 200, 0);
+  stroke(80, 120, 255);
+  line(0, 0, -200, 0, 0, 200);
+  pop();
+};
 /**
  * q5.js
  * @version 4.8
