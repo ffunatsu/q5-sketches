@@ -80,7 +80,8 @@ q5.draw = function () {
   pg3d.flush();
 
   // 3. Composite into 2D canvas
-  image(pg3d, 0, 0);
+  imageMode(CENTER);
+  image(pg3d, 0, 0, width, height);
 
   // 4. 2D Foreground Overlay
   fill(255);

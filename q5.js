@@ -9563,7 +9563,8 @@ Q5.WebGPU = async function (scope, parent) {
 					depthWriteEnabled: true,
 					depthCompare: 'less',
 					format: 'depth24plus'
-				}
+				},
+				multisample: { count: sampleCount }
 			});
 
 			// Line Pipeline (Unlit)
@@ -9591,7 +9592,8 @@ Q5.WebGPU = async function (scope, parent) {
 					depthWriteEnabled: true,
 					depthCompare: 'less-equal',
 					format: 'depth24plus'
-				}
+				},
+				multisample: { count: sampleCount }
 			});
 
 			uniformBuffer = device.createBuffer({
@@ -9605,16 +9607,38 @@ Q5.WebGPU = async function (scope, parent) {
 			});
 		}
 
+		let msaaColorTexture = null;
 		let targetTexture = null;
+		let sampleCount = 4;
 
 		function ensureTextures() {
 			if (!Q5.device) return;
 			const w = c.width || c.w || $.width || 400;
 			const h = c.height || c.h || $.height || 400;
+			const format = navigator.gpu ? navigator.gpu.getPreferredCanvasFormat() : 'bgra8unorm';
+
+			if (sampleCount > 1) {
+				if (!msaaColorTexture || msaaColorTexture.width !== w || msaaColorTexture.height !== h) {
+					if (msaaColorTexture) msaaColorTexture.destroy();
+					msaaColorTexture = Q5.device.createTexture({
+						label: 'q5_3d_msaa_color_texture',
+						size: [w, h, 1],
+						sampleCount: sampleCount,
+						format: format,
+						usage: GPUTextureUsage.RENDER_ATTACHMENT
+					});
+				}
+			} else if (msaaColorTexture) {
+				msaaColorTexture.destroy();
+				msaaColorTexture = null;
+			}
+
 			if (!depthTexture || depthTexture.width !== w || depthTexture.height !== h) {
 				if (depthTexture) depthTexture.destroy();
 				depthTexture = Q5.device.createTexture({
-					size: [w, h],
+					label: 'q5_3d_depth_texture',
+					size: [w, h, 1],
+					sampleCount: sampleCount,
 					format: 'depth24plus',
 					usage: GPUTextureUsage.RENDER_ATTACHMENT
 				});
@@ -9622,7 +9646,6 @@ Q5.WebGPU = async function (scope, parent) {
 			if ($._isGraphics) {
 				if (!targetTexture || targetTexture.width !== w || targetTexture.height !== h) {
 					if (targetTexture) targetTexture.destroy();
-					const format = navigator.gpu ? navigator.gpu.getPreferredCanvasFormat() : 'bgra8unorm';
 					targetTexture = Q5.device.createTexture({
 						label: 'q5_3d_target_texture',
 						size: [w, h, 1],
@@ -9638,7 +9661,32 @@ Q5.WebGPU = async function (scope, parent) {
 			}
 		}
 
+		$.smooth = () => {
+			if (sampleCount !== 4) {
+				sampleCount = 4;
+				triPipeline = null;
+				linePipeline = null;
+				if (msaaColorTexture) { msaaColorTexture.destroy(); msaaColorTexture = null; }
+				if (depthTexture) { depthTexture.destroy(); depthTexture = null; }
+			}
+		};
+
+		$.noSmooth = () => {
+			if (sampleCount !== 1) {
+				sampleCount = 1;
+				triPipeline = null;
+				linePipeline = null;
+				if (msaaColorTexture) { msaaColorTexture.destroy(); msaaColorTexture = null; }
+				if (depthTexture) { depthTexture.destroy(); depthTexture = null; }
+			}
+		};
+
 		$._createCanvas = function (w, h, opt = {}) {
+			if (opt.antialias === false || opt.sampleCount === 1) {
+				sampleCount = 1;
+			} else {
+				sampleCount = opt.sampleCount || 4;
+			}
 			if (!navigator.gpu) return c;
 			const format = navigator.gpu.getPreferredCanvasFormat();
 
@@ -10026,15 +10074,28 @@ Q5.WebGPU = async function (scope, parent) {
 			uniformData.set(spotLightColor, 44);
 			device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
-			// Command Encoder
-			const commandEncoder = device.createCommandEncoder({ label: 'q5_3d_render_encoder' });
-			const renderPass = commandEncoder.beginRenderPass({
-				colorAttachments: [{
+			let colorAttachment;
+			if (sampleCount > 1 && msaaColorTexture) {
+				colorAttachment = {
+					view: msaaColorTexture.createView(),
+					resolveTarget: currentTextureView,
+					clearValue: { r: 0, g: 0, b: 0, a: 0 },
+					loadOp: 'clear',
+					storeOp: 'store'
+				};
+			} else {
+				colorAttachment = {
 					view: currentTextureView,
 					clearValue: { r: 0, g: 0, b: 0, a: 0 },
 					loadOp: 'clear',
 					storeOp: 'store'
-				}],
+				};
+			}
+
+			// Command Encoder
+			const commandEncoder = device.createCommandEncoder({ label: 'q5_3d_render_encoder' });
+			const renderPass = commandEncoder.beginRenderPass({
+				colorAttachments: [colorAttachment],
 				depthStencilAttachment: {
 					view: depthTexture.createView(),
 					depthClearValue: 1.0,

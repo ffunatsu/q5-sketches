@@ -9270,58 +9270,87 @@ async function initCanvas2(w, h) {
 }
 globalThis.initCanvas = initCanvas2;
 
-// 3d-basic.js
+// 3d-ortho.js
 var Canvas3 = initCanvas;
 await Canvas3(void 0, void 0, "webgpu");
 var width = window.innerWidth;
 var height = window.innerHeight;
-var use3d = true;
 var pg3d;
 try {
   pg3d = createGraphics(width, height, "3d");
 } catch (err) {
   console.error("createGraphics error:", err);
 }
+var camDistance = 500;
 q5.draw = function() {
-  if (!pg3d) {
-    console.log("error: pg3d undefined");
-    return;
+  if (!pg3d) return;
+  background("#1a1a24");
+  pg3d.clear();
+  let isOrtho = Math.floor(frameCount / 240) % 2 === 0;
+  if (isOrtho) {
+    pg3d.ortho(-width / 2, width / 2, -height / 2, height / 2, -2e3, 2e3);
+  } else {
+    pg3d.perspective(Math.PI / 3, width / height, 10, 5e3);
   }
-  background("#129620");
-  fill(255, 0, 0);
-  noStroke();
-  circle(100, 100, 50);
-  if (use3d) {
-    pg3d.clear();
-    pg3d.orbitControl(true);
-    pg3d.directionalLight(255, 240, 200, 0.5, 0.8, 1);
-    pg3d.ambientLight(100, 100, 120);
-    pg3d.push();
-    pg3d.rotateX(frameCount * 0.01);
-    pg3d.rotateY(frameCount * 0.015);
-    pg3d.fill(60, 150, 240);
-    pg3d.stroke(255, 255, 255);
-    pg3d.box(160);
-    pg3d.stroke(255, 80, 80);
-    pg3d.line(-200, 0, 0, 200, 0, 0);
-    pg3d.stroke(80, 255, 80);
-    pg3d.line(0, -200, 0, 0, 200, 0);
-    pg3d.stroke(80, 120, 255);
-    pg3d.line(0, 0, -200, 0, 0, 200);
-    pg3d.pop();
-    pg3d.flush();
-    imageMode(CENTER);
-    image(pg3d, 0, 0, width, height);
+  pg3d.camera(
+    camDistance,
+    -camDistance,
+    camDistance,
+    // eye
+    0,
+    0,
+    0,
+    // center
+    0,
+    1,
+    0
+    // up
+  );
+  pg3d.orbitControl(true);
+  pg3d.directionalLight(255, 255, 255, 0.6, 0.8, -0.5);
+  pg3d.ambientLight(80, 80, 100);
+  pg3d.push();
+  pg3d.rotateY(frameCount * 5e-3);
+  const gridSize = 3;
+  const spacing = 110;
+  const offset = (gridSize - 1) * spacing / 2;
+  for (let x = 0; x < gridSize; x++) {
+    for (let z = 0; z < gridSize; z++) {
+      pg3d.push();
+      let px = x * spacing - offset;
+      let pz = z * spacing - offset;
+      let h = 40 + 30 * Math.sin(frameCount * 0.05 + x + z);
+      pg3d.translate(px, -h / 2, pz);
+      let r = 80 + x * 70;
+      let g = 130 + z * 50;
+      let b = 220;
+      pg3d.fill(r, g, b);
+      pg3d.stroke(255, 255, 255);
+      pg3d.box(70, h, 70);
+      pg3d.pop();
+    }
   }
-  fill(255, 0, 0);
-  noStroke();
-  circle(100, 100, 50);
+  pg3d.stroke(255, 60, 60);
+  pg3d.line(-200, 0, 0, 200, 0, 0);
+  pg3d.stroke(60, 255, 60);
+  pg3d.line(0, -200, 0, 0, 200, 0);
+  pg3d.stroke(60, 100, 255);
+  pg3d.line(0, 0, -200, 0, 0, 200);
+  pg3d.pop();
+  pg3d.flush();
+  imageMode(CENTER);
+  image(pg3d, 0, 0, width, height);
   fill(255);
   noStroke();
-  textSize(16);
+  textSize(18);
   textAlign(LEFT, TOP);
-  text("q5.js 3D WebGPU - Basic Box & Layering", 20, 20);
-  text("FPS: " + Math.round(frameRate()), 20, 45);
+  text("q5.js 3D WebGPU - Orthographic vs Perspective", 20, 20);
+  textSize(14);
+  fill(isOrtho ? "#55ff88" : "#88aaff");
+  text(`Projection Mode: ${isOrtho ? "ORTHOGRAPHIC (\u5E73\u884C\u6295\u5F71)" : "PERSPECTIVE (\u900F\u8996\u6295\u5F71)"}`, 20, 50);
+  fill(200);
+  text(`Switching in: ${4 - Math.floor(frameCount / 60) % 4}s`, 20, 72);
+  text(`FPS: ${Math.round(frameRate())}`, 20, 94);
 };
 /**
  * q5.js

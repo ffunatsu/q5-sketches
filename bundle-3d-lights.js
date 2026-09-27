@@ -490,7 +490,7 @@ if (typeof document == "object") {
   else setTimeout(init, 0);
 }
 Q5.modules.canvas = ($, q) => {
-  $._Canvas = window.OffscreenCanvas || function() {
+  $._Canvas = typeof window !== "undefined" && window.OffscreenCanvas || typeof globalThis !== "undefined" && globalThis.OffscreenCanvas || function() {
     return document.createElement("canvas");
   };
   if (Q5._server) {
@@ -6764,6 +6764,10 @@ fn fragMain(f: FragParams) -> @location(0) vec4f {
       $._addTexture(g, g._frameA);
       $._addTexture(g, g._frameB);
       g._beginRender();
+    } else if (g._renderer === "3d" || opt.renderer === "3d") {
+      g.modified = false;
+      if (g._texture) $._addTexture(g, g._texture);
+      g._owner = $;
     } else {
       $._makeDrawable(g);
       g.modified = true;
@@ -6797,8 +6801,17 @@ fn fragMain(f: FragParams) -> @location(0) vec4f {
     if (makeFrame) {
       img._render();
       img._finishRender();
+    } else if (img._renderer === "3d") {
+      if (typeof img._render === "function") img._render();
+      if (img._texture && img._texture.index === void 0) {
+        $._addTexture(img, img._texture);
+      }
+      img.modified = false;
+      if ($.frameCount <= 5) {
+        console.log(`[WebGPU 2D] image(pg3d): frame=${$.frameCount}, textureIndex=${img._texture?.index}`);
+      }
     }
-    if (img.modified) {
+    if (img.modified && img._renderer !== "3d") {
       let cnv = img.canvas;
       Q5.device.queue.copyExternalImageToTexture(
         { source: cnv },
@@ -8001,7 +8014,8 @@ Q5.WebGPU = async function(scope, parent) {
           depthWriteEnabled: true,
           depthCompare: "less",
           format: "depth24plus"
-        }
+        },
+        multisample: { count: sampleCount }
       });
       linePipeline = device.createRenderPipeline({
         label: "q5_3d_line_pipeline",
@@ -8027,7 +8041,8 @@ Q5.WebGPU = async function(scope, parent) {
           depthWriteEnabled: true,
           depthCompare: "less-equal",
           format: "depth24plus"
-        }
+        },
+        multisample: { count: sampleCount }
       });
       uniformBuffer = device.createBuffer({
         size: 192,
@@ -8039,36 +8054,123 @@ Q5.WebGPU = async function(scope, parent) {
         entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
       });
     }
-    function initDepth() {
-      if (!Q5.device || !c.width || !c.height) return;
-      if (depthTexture) depthTexture.destroy();
-      depthTexture = Q5.device.createTexture({
-        size: [c.width, c.height],
-        format: "depth24plus",
-        usage: GPUTextureUsage.RENDER_ATTACHMENT
-      });
+    let msaaColorTexture = null;
+    let targetTexture = null;
+    let sampleCount = 4;
+    function ensureTextures() {
+      if (!Q5.device) return;
+      const w = c.width || c.w || $.width || 400;
+      const h = c.height || c.h || $.height || 400;
+      const format = navigator.gpu ? navigator.gpu.getPreferredCanvasFormat() : "bgra8unorm";
+      if (sampleCount > 1) {
+        if (!msaaColorTexture || msaaColorTexture.width !== w || msaaColorTexture.height !== h) {
+          if (msaaColorTexture) msaaColorTexture.destroy();
+          msaaColorTexture = Q5.device.createTexture({
+            label: "q5_3d_msaa_color_texture",
+            size: [w, h, 1],
+            sampleCount,
+            format,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT
+          });
+        }
+      } else if (msaaColorTexture) {
+        msaaColorTexture.destroy();
+        msaaColorTexture = null;
+      }
+      if (!depthTexture || depthTexture.width !== w || depthTexture.height !== h) {
+        if (depthTexture) depthTexture.destroy();
+        depthTexture = Q5.device.createTexture({
+          label: "q5_3d_depth_texture",
+          size: [w, h, 1],
+          sampleCount,
+          format: "depth24plus",
+          usage: GPUTextureUsage.RENDER_ATTACHMENT
+        });
+      }
+      if ($._isGraphics) {
+        if (!targetTexture || targetTexture.width !== w || targetTexture.height !== h) {
+          if (targetTexture) targetTexture.destroy();
+          targetTexture = Q5.device.createTexture({
+            label: "q5_3d_target_texture",
+            size: [w, h, 1],
+            format,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
+          });
+          $._texture = targetTexture;
+          $.canvas._texture = targetTexture;
+          if ($._owner && typeof $._owner._addTexture === "function") {
+            $._owner._addTexture($, targetTexture);
+          }
+        }
+      }
     }
+    $.smooth = () => {
+      if (sampleCount !== 4) {
+        sampleCount = 4;
+        triPipeline = null;
+        linePipeline = null;
+        if (msaaColorTexture) {
+          msaaColorTexture.destroy();
+          msaaColorTexture = null;
+        }
+        if (depthTexture) {
+          depthTexture.destroy();
+          depthTexture = null;
+        }
+      }
+    };
+    $.noSmooth = () => {
+      if (sampleCount !== 1) {
+        sampleCount = 1;
+        triPipeline = null;
+        linePipeline = null;
+        if (msaaColorTexture) {
+          msaaColorTexture.destroy();
+          msaaColorTexture = null;
+        }
+        if (depthTexture) {
+          depthTexture.destroy();
+          depthTexture = null;
+        }
+      }
+    };
     $._createCanvas = function(w, h, opt = {}) {
+      if (opt.antialias === false || opt.sampleCount === 1) {
+        sampleCount = 1;
+      } else {
+        sampleCount = opt.sampleCount || 4;
+      }
       if (!navigator.gpu) return c;
-      ctx = q.ctx = q.drawingContext = c.getContext("webgpu");
-      if (!ctx) return c;
       const format = navigator.gpu.getPreferredCanvasFormat();
-      const config = {
-        device: Q5.device,
-        format,
-        alphaMode: "premultiplied"
+      const setup = () => {
+        const isNativeOffscreen = typeof globalThis !== "undefined" && globalThis.__mystral && $._isGraphics;
+        console.log(`[q5-webgpu-3d.js:429] setup: isNativeOffscreen=${isNativeOffscreen} (globalThis.__mystral=${typeof globalThis !== "undefined" ? globalThis.__mystral : "undefined"}, $._isGraphics=${$._isGraphics})`);
+        if (!isNativeOffscreen && typeof c.getContext === "function") {
+          try {
+            ctx = q.ctx = q.drawingContext = c.getContext("webgpu");
+            console.log(`[q5-webgpu-3d.js:433] c.getContext('webgpu') executed: ctx=${ctx ? "GPUCanvasContext" : "null"}`);
+            if (ctx) {
+              ctx.configure({
+                device: Q5.device,
+                format,
+                alphaMode: "premultiplied"
+              });
+            }
+          } catch (e) {
+            console.error(`[q5-webgpu-3d.js:441] context configure error:`, e);
+          }
+        } else {
+          console.log(`[q5-webgpu-3d.js:444] Skipped c.getContext('webgpu') for native offscreen targetTexture`);
+        }
+        ensureTextures();
+        initPipelines();
       };
       if (Q5.device) {
-        ctx.configure(config);
-        initDepth();
-        initPipelines();
+        setup();
       } else if (typeof Q5.initWebGPU === "function") {
         Q5.initWebGPU().then((supported) => {
           if (supported && Q5.device) {
-            config.device = Q5.device;
-            ctx.configure(config);
-            initDepth();
-            initPipelines();
+            setup();
           }
         });
       }
@@ -8076,7 +8178,7 @@ Q5.WebGPU = async function(scope, parent) {
     };
     $._resizeCanvas = (w, h) => {
       $._setCanvasSize(w, h);
-      initDepth();
+      ensureTextures();
     };
     $.translate = (x, y, z = 0) => {
       modelMatrix = Mat4.translate(modelMatrix, [x, y, z]);
@@ -8372,16 +8474,40 @@ Q5.WebGPU = async function(scope, parent) {
       triVertices.length = 0;
       lineVertices.length = 0;
     };
+    let renderCount = 0;
     $._render = () => {
-      if (!Q5.device || !ctx) return;
+      if (!Q5.device) {
+        console.warn("[3D] _render: Q5.device not ready");
+        return;
+      }
+      if (triVertices.length === 0 && lineVertices.length === 0) {
+        return;
+      }
       if (!triPipeline) initPipelines();
-      if (!depthTexture) initDepth();
+      ensureTextures();
       const device = Q5.device;
       let currentTextureView;
-      try {
-        currentTextureView = ctx.getCurrentTexture().createView();
-      } catch (e) {
+      let targetType = "none";
+      if (ctx) {
+        try {
+          currentTextureView = ctx.getCurrentTexture().createView();
+          targetType = "swapchain(ctx)";
+        } catch (e) {
+          if (targetTexture) {
+            currentTextureView = targetTexture.createView();
+            targetType = "targetTexture(fallback)";
+          } else return;
+        }
+      } else if (targetTexture) {
+        currentTextureView = targetTexture.createView();
+        targetType = "targetTexture";
+      } else {
+        console.warn("[3D] _render: no texture view available");
         return;
+      }
+      renderCount++;
+      if (renderCount <= 5) {
+        console.log(`[3D] _render #${renderCount}: target=${targetType}, tris=${triVertices.length / FLOATS_PER_VERTEX}, lines=${lineVertices.length / FLOATS_PER_VERTEX}`);
       }
       const aspect = (c.w || 400) / (c.h || 400);
       const proj = isOrtho ? Mat4.ortho(orthoBounds.left, orthoBounds.right, orthoBounds.bottom, orthoBounds.top, orthoBounds.near, orthoBounds.far) : Mat4.perspective(fovy, aspect, near, far);
@@ -8402,14 +8528,26 @@ Q5.WebGPU = async function(scope, parent) {
       uniformData.set(spotLightDir, 40);
       uniformData.set(spotLightColor, 44);
       device.queue.writeBuffer(uniformBuffer, 0, uniformData);
-      const commandEncoder = device.createCommandEncoder({ label: "q5_3d_render_encoder" });
-      const renderPass = commandEncoder.beginRenderPass({
-        colorAttachments: [{
+      let colorAttachment;
+      if (sampleCount > 1 && msaaColorTexture) {
+        colorAttachment = {
+          view: msaaColorTexture.createView(),
+          resolveTarget: currentTextureView,
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+          loadOp: "clear",
+          storeOp: "store"
+        };
+      } else {
+        colorAttachment = {
           view: currentTextureView,
           clearValue: { r: 0, g: 0, b: 0, a: 0 },
           loadOp: "clear",
           storeOp: "store"
-        }],
+        };
+      }
+      const commandEncoder = device.createCommandEncoder({ label: "q5_3d_render_encoder" });
+      const renderPass = commandEncoder.beginRenderPass({
+        colorAttachments: [colorAttachment],
         depthStencilAttachment: {
           view: depthTexture.createView(),
           depthClearValue: 1,
@@ -9186,7 +9324,8 @@ q5.draw = function() {
   }
   pg3d.pop();
   pg3d.flush();
-  image(pg3d, 0, 0);
+  imageMode(CENTER);
+  image(pg3d, 0, 0, width, height);
   fill(255);
   noStroke();
   textSize(15);
