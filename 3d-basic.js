@@ -6,10 +6,14 @@ let Canvas = initCanvas;
 
 // ------
 
-await Canvas();
+// await Canvas();
+await Canvas(undefined, undefined, 'webgpu');
 
 let width = window.innerWidth;
 let height = window.innerHeight;
+
+let use3d = true;
+// let use3d = false;
 
 // console.log("a");
 let pg3d;
@@ -29,41 +33,53 @@ q5.draw = function () {
   // console.log("yeah!!!");
 
   // 1. 2D Background
-  background("#121620");
+  background("#129620");
 
-  // 2. 3D Scene
-  pg3d.clear();
-  pg3d.orbitControl(true);
+  fill(255, 0, 0);
+  noStroke();
+  circle(100, 100, 50);
 
-  pg3d.directionalLight(255, 240, 200, 0.5, 0.8, 1.0);
-  pg3d.ambientLight(100, 100, 120);
+  if(use3d){
+    // 2. 3D Scene
+    pg3d.clear();
+    pg3d.orbitControl(true);
 
-  pg3d.push();
-  pg3d.rotateX(frameCount * 0.01);
-  pg3d.rotateY(frameCount * 0.015);
+    pg3d.directionalLight(255, 240, 200, 0.5, 0.8, 1.0);
+    pg3d.ambientLight(100, 100, 120);
 
-  // 3D Box
-  pg3d.fill(60, 150, 240);
-  pg3d.stroke(255, 255, 255);
-  pg3d.box(160);
+    pg3d.push();
+    pg3d.rotateX(frameCount * 0.01);
+    pg3d.rotateY(frameCount * 0.015);
 
-  // Axis Lines
-  pg3d.stroke(255, 80, 80);
-  pg3d.line(-200, 0, 0, 200, 0, 0);
-  pg3d.stroke(80, 255, 80);
-  pg3d.line(0, -200, 0, 0, 200, 0);
-  pg3d.stroke(80, 120, 255);
-  pg3d.line(0, 0, -200, 0, 0, 200);
+    // 3D Box
+    pg3d.fill(60, 150, 240);
+    pg3d.stroke(255, 255, 255);
+    pg3d.box(160);
 
-  pg3d.pop();
+    // Axis Lines
+    pg3d.stroke(255, 80, 80);
+    pg3d.line(-200, 0, 0, 200, 0, 0);
+    pg3d.stroke(80, 255, 80);
+    pg3d.line(0, -200, 0, 0, 200, 0);
+    pg3d.stroke(80, 120, 255);
+    pg3d.line(0, 0, -200, 0, 0, 200);
 
-  // Submit 3D render pass
-  pg3d.flush();
+    pg3d.pop();
 
-  // Composite 3D layer into 2D canvas
-  image(pg3d, 0, 0);
+    // Submit 3D render pass
+    pg3d.flush();
+
+    // Composite 3D layer into 2D canvas
+    imageMode(CENTER);
+    image(pg3d, 0, 0, width, height);
+  }
 
   // 3. 2D Foreground Overlay (Rendered directly on top)
+
+  fill(255, 0, 0);
+  noStroke();
+  circle(100, 100, 50);
+
   fill(255);
   noStroke();
   textSize(16);
