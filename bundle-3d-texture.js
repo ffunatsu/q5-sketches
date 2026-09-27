@@ -9890,87 +9890,87 @@ async function initCanvas2(w, h) {
 }
 globalThis.initCanvas = initCanvas2;
 
-// 3d-ortho.js
+// 3d-texture.js
 var Canvas3 = initCanvas;
 await Canvas3(void 0, void 0, "webgpu");
 var width = window.innerWidth;
 var height = window.innerHeight;
 var pg3d;
+var pgTex;
 try {
   pg3d = createGraphics(width, height, "3d");
+  pgTex = createGraphics(256, 256, "c2d");
 } catch (err) {
   console.error("createGraphics error:", err);
 }
-var camDistance = 500;
-q5.draw = function() {
-  if (!pg3d) return;
-  background("#1a1a24");
-  pg3d.clear();
-  let isOrtho = Math.floor(frameCount / 240) % 2 === 0;
-  if (isOrtho) {
-    pg3d.ortho(-width / 2, width / 2, -height / 2, height / 2, -2e3, 2e3);
-  } else {
-    pg3d.perspective(Math.PI / 3, width / height, 10, 5e3);
-  }
-  pg3d.camera(
-    camDistance,
-    -camDistance,
-    camDistance,
-    // eye
-    0,
-    0,
-    0,
-    // center
-    0,
-    1,
-    0
-    // up
-  );
-  pg3d.orbitControl(true);
-  pg3d.directionalLight(255, 255, 255, 0.6, 0.8, -0.5);
-  pg3d.ambientLight(80, 80, 100);
-  pg3d.push();
-  pg3d.rotateY(frameCount * 5e-3);
-  const gridSize = 3;
-  const spacing = 110;
-  const offset = (gridSize - 1) * spacing / 2;
-  for (let x = 0; x < gridSize; x++) {
-    for (let z = 0; z < gridSize; z++) {
-      pg3d.push();
-      let px = x * spacing - offset;
-      let pz = z * spacing - offset;
-      let h = 40 + 30 * Math.sin(frameCount * 0.05 + x + z);
-      pg3d.translate(px, -h / 2, pz);
-      let r = 80 + x * 70;
-      let g = 130 + z * 50;
-      let b = 220;
-      pg3d.fill(r, g, b);
-      pg3d.stroke(255, 255, 255);
-      pg3d.box(70, h, 70);
-      pg3d.pop();
+function updateTexture() {
+  pgTex.background(30, 40, 60);
+  const s = 32;
+  for (let x = 0; x < 256; x += s) {
+    for (let y = 0; y < 256; y += s) {
+      if ((x / s + y / s) % 2 === 0) {
+        pgTex.fill(220, 230, 255);
+        pgTex.noStroke();
+        pgTex.rect(x, y, s, s);
+      }
     }
   }
-  pg3d.stroke(255, 60, 60);
-  pg3d.line(-200, 0, 0, 200, 0, 0);
-  pg3d.stroke(60, 255, 60);
-  pg3d.line(0, -200, 0, 0, 200, 0);
-  pg3d.stroke(60, 100, 255);
-  pg3d.line(0, 0, -200, 0, 0, 200);
+  pgTex.fill(255, 80, 80);
+  pgTex.noStroke();
+  let cx = 128 + Math.cos(frameCount * 0.05) * 60;
+  let cy = 128 + Math.sin(frameCount * 0.05) * 60;
+  pgTex.circle(cx, cy, 50);
+  pgTex.fill(20);
+  pgTex.textSize(24);
+  pgTex.textAlign(CENTER, CENTER);
+  pgTex.text("WebGPU 3D", 128, 128);
+}
+q5.draw = function() {
+  if (!pg3d || !pgTex) return;
+  updateTexture();
+  pg3d.flush();
+  background("#101018");
+  pg3d.clear();
+  pg3d.camera(300, -250, 350, 0, 0, 0, 0, 1, 0);
+  pg3d.orbitControl(true);
+  pg3d.directionalLight(255, 255, 255, 0.5, 0.8, 0.6);
+  pg3d.ambientLight(100, 100, 120);
+  pg3d.texture(pgTex);
+  pg3d.push();
+  pg3d.translate(-90, 0, 0);
+  pg3d.rotateX(frameCount * 0.01);
+  pg3d.rotateY(frameCount * 0.015);
+  pg3d.fill(255, 255, 255);
+  pg3d.box(110);
+  pg3d.pop();
+  pg3d.push();
+  pg3d.translate(90, 0, 0);
+  pg3d.rotateY(frameCount * 0.02);
+  pg3d.fill(255, 255, 255);
+  pg3d.sphere(60, 24, 18);
+  pg3d.pop();
+  pg3d.noTexture();
+  pg3d.push();
+  pg3d.translate(0, 100, 0);
+  pg3d.rotateX(Math.PI / 2);
+  pg3d.fill(50, 60, 80);
+  pg3d.plane(320, 320);
   pg3d.pop();
   pg3d.flush();
+  pgTex.modified = true;
   imageMode(CENTER);
   image(pg3d, 0, 0, width, height);
   fill(255);
   noStroke();
-  textSize(18);
+  textSize(16);
   textAlign(LEFT, TOP);
-  text("q5.js 3D WebGPU - Orthographic vs Perspective", 20, 20);
-  textSize(14);
-  fill(isOrtho ? "#55ff88" : "#88aaff");
-  text(`Projection Mode: ${isOrtho ? "ORTHOGRAPHIC (\u5E73\u884C\u6295\u5F71)" : "PERSPECTIVE (\u900F\u8996\u6295\u5F71)"}`, 20, 50);
+  text("q5.js 3D WebGPU - Texture Mapping (texture(img))", 20, 20);
+  imageMode(CORNER);
+  image(pgTex, -width / 2 + 20, height / 2 - 100, 80, 80);
   fill(200);
-  text(`Switching in: ${4 - Math.floor(frameCount / 60) % 4}s`, 20, 72);
-  text(`FPS: ${Math.round(frameRate())}`, 20, 94);
+  textSize(12);
+  text("Dynamic Texture Preview (80x80)", 20, height - 15);
+  text("FPS: " + Math.round(frameRate()), 20, 45);
 };
 /**
  * q5.js
