@@ -223,11 +223,11 @@ function Q5(scope, parent, renderer) {
     }
     $._redraw = false;
   };
-  $.remove = async () => {
+  $.remove = () => {
     $._removed = true;
     $.noLoop();
     if ($.canvas.remove) $.canvas.remove();
-    await runHooks("remove");
+    return runHooks("remove");
   };
   $.frameRate = (hz) => {
     if (hz && hz != $._targetFrameRate) {
@@ -490,7 +490,7 @@ if (typeof document == "object") {
   else setTimeout(init, 0);
 }
 Q5.modules.canvas = ($, q) => {
-  $._Canvas = window.OffscreenCanvas || function() {
+  $._Canvas = typeof window !== "undefined" && window.OffscreenCanvas || typeof globalThis !== "undefined" && globalThis.OffscreenCanvas || function() {
     return document.createElement("canvas");
   };
   if (Q5._server) {
@@ -586,6 +586,7 @@ Q5.modules.canvas = ($, q) => {
   $.createCanvas = $.Canvas;
   $.createGraphics = function(w, h, opt = {}) {
     if (typeof opt == "string") opt = { renderer: opt };
+    if (opt.renderer == "2d") opt.renderer = "c2d";
     let g = new Q5("graphics", void 0, opt.renderer || ($._webgpuFallback ? "webgpu-fallback" : $._renderer));
     opt.alpha ??= true;
     opt.colorSpace ??= $.canvas.colorSpace;
@@ -765,7 +766,8 @@ if (!window.matchMedia || !matchMedia("(dynamic-range: high) and (color-gamut: p
 Q5.renderers.c2d = {};
 Q5.renderers.c2d.canvas = ($, q) => {
   let c = $.canvas;
-  if ($.colorMode) $.colorMode("rgb", $._webgpu ? 1 : 255);
+  if (c) c.colorSpace = "srgb";
+  if ($.colorMode) $.colorMode("rgb", 255, "srgb");
   $._createCanvas = function(w, h, options) {
     if (!c) {
       console.error("q5 canvas could not be created. skia-canvas and jsdom packages not found.");
@@ -1069,7 +1071,15 @@ Q5.renderers.c2d.shapes = ($) => {
   };
   function rect2(x, y, w, h) {
     $.ctx.beginPath();
-    $.ctx.rect(x, y, w, h);
+    if (typeof $.ctx.rect === "function") {
+      $.ctx.rect(x, y, w, h);
+    } else {
+      $.ctx.moveTo(x, y);
+      $.ctx.lineTo(x + w, y);
+      $.ctx.lineTo(x + w, y + h);
+      $.ctx.lineTo(x, y + h);
+      $.ctx.closePath();
+    }
     ink();
   }
   function roundedRect(x, y, w, h, tl, tr, br, bl) {
@@ -1263,11 +1273,15 @@ Q5.renderers.c2d.image = ($, q) => {
         g.defaultHeight = bitmap.height * $._defaultImageScale;
         g.naturalWidth = bitmap.width;
         g.naturalHeight = bitmap.height;
-        g.ctx.putImageData({
-          width: bitmap.width,
-          height: bitmap.height,
-          data: new Uint8Array(bitmap._data)
-        }, 0, 0);
+        g.ctx.putImageData(
+          {
+            width: bitmap.width,
+            height: bitmap.height,
+            data: new Uint8Array(bitmap._data)
+          },
+          0,
+          0
+        );
         bitmap.close?.();
         if (cb) cb(g);
         return g;
@@ -2133,6 +2147,7 @@ Q5.modules.color = ($, q) => {
   };
   $._namedColors = {
     aqua: [0, 255, 255],
+    beige: [245, 245, 220],
     black: [0, 0, 0],
     blue: [0, 0, 255],
     brown: [165, 42, 42],
@@ -2371,7 +2386,7 @@ Q5.ColorRGB_8 = class extends Q5.ColorRGB {
     this.a = v;
   }
   toString() {
-    return `rgb(${this.r} ${this.g} ${this.b} / ${this.a / 255})`;
+    return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a / 255})`;
   }
 };
 Q5.ColorRGB_P3_8 = class extends Q5.ColorRGB_8 {
@@ -3453,7 +3468,7 @@ Q5.modules.math = ($, q) => {
     else if (method == $.SHR3) rng1 = shr3();
     rng1.setSeed();
   };
-  var ziggurat = new function() {
+  var ziggurat = new (function() {
     var iz;
     var jz;
     var kn = new Array(128);
@@ -3566,7 +3581,7 @@ Q5.modules.math = ($, q) => {
     this.RNOR = RNOR;
     this.REXP = REXP;
     this.zigset = zigset;
-  }();
+  })();
   ziggurat.hasInit = false;
   $.randomGaussian = (mean, std) => {
     if (!ziggurat.hasInit) {
@@ -6760,6 +6775,10 @@ fn fragMain(f: FragParams) -> @location(0) vec4f {
       $._addTexture(g, g._frameA);
       $._addTexture(g, g._frameB);
       g._beginRender();
+    } else if (g._renderer === "3d" || opt.renderer === "3d") {
+      g.modified = false;
+      if (g._texture) $._addTexture(g, g._texture);
+      g._owner = $;
     } else {
       $._makeDrawable(g);
       g.modified = true;
@@ -6793,8 +6812,14 @@ fn fragMain(f: FragParams) -> @location(0) vec4f {
     if (makeFrame) {
       img._render();
       img._finishRender();
+    } else if (img._renderer === "3d") {
+      if (typeof img._render === "function") img._render();
+      if (img._texture && img._texture.index === void 0) {
+        $._addTexture(img, img._texture);
+      }
+      img.modified = false;
     }
-    if (img.modified) {
+    if (img.modified && img._renderer !== "3d") {
       let cnv = img.canvas;
       Q5.device.queue.copyExternalImageToTexture(
         { source: cnv },
@@ -7582,7 +7607,7 @@ fn fragMain(f : FragParams) -> @location(0) vec4f {
     ellipseIndexBuffer?.destroy();
     for (let b of $._buffers) b.destroy();
     $._buffers = [];
-    _remove();
+    return _remove();
   };
 };
 Q5.THRESHOLD = 1;
@@ -7635,8 +7660,13 @@ Q5._requestGPU = async () => {
     Q5.MAX_TEXTS = min(Q5.MAX_TEXTS, floor(maxStorage / 32));
     device.lost.then((e) => {
       if (!e || e.reason === void 0 && e.message === void 0) return;
+      if (e.reason == "destroyed") return;
       console.error("WebGPU crashed!");
       console.error(e);
+      requestAnimationFrame(async () => {
+        Q5.device = Q5._gpuTask = null;
+        await Q5.initWebGPU();
+      });
     });
     Q5.device = device;
     if (typeof window == "object") {
